@@ -1,0 +1,124 @@
+TBSA pour STICK TV (Fire TV Stick, Android TV, Google TV / Chromecast, Xiaomi Mi Stick...)
+==============================================================================================
+
+L'application "TBSA" se connecte a TBSA-Serveur sur votre PC (meme Wi-Fi). Il faut d'abord FABRIQUER le fichier
+d'installation TBSA-Serveur.apk (une seule fois) : GitHub le fait pour vous, gratuitement, dans votre navigateur.
+
+=============================================================================================
+ETAPE 1 - FABRIQUER L'APPLICATION AVEC GITHUB  (environ 10 minutes, une seule fois)
+=============================================================================================
+ A. Preparer les fichiers
+    1. Dezippez TBSA-Android-projet.zip (clic droit > Extraire tout). Vous obtenez un dossier "android-app".
+    2. Ouvrez ce dossier : vous y voyez notamment .github, app, gradle, build.gradle, settings.gradle.
+       (Si vous ne voyez pas ".github", activez "Elements masques" dans l'onglet Affichage de l'Explorateur.)
+
+ B. Creer le depot GitHub
+    3. Allez sur https://github.com et creez un compte gratuit (ou connectez-vous).
+    4. En haut a droite, cliquez sur "+" puis "New repository".
+    5. "Repository name" : tbsa-app
+       Choisissez "Public"  (important : c'est ce qui permet de telecharger l'application ensuite ; le depot ne
+       contient aucun mot de passe, seulement le code de l'application).
+    6. Cliquez "Create repository".
+
+ C. Envoyer les fichiers
+    7. Sur la page du depot, cliquez sur le lien "uploading an existing file".
+    8. Dans l'Explorateur, ouvrez le dossier android-app, selectionnez TOUT son contenu (Ctrl + A) et glissez-deposez
+       le tout dans la zone de la page GitHub. Attendez la fin de l'envoi (tous les fichiers sont listes).
+    9. Tout en bas, cliquez le bouton vert "Commit changes".
+    Si le dossier ".github" n'a pas ete envoye (verifiez sur la page du depot), ajoutez-le a la main :
+       "Add file" > "Create new file" ; dans le nom, tapez  .github/workflows/build-apk.yml  (les "/" creent les
+       dossiers) ; collez-y tout le contenu du fichier build-apk.yml fourni ; puis "Commit changes".
+
+ D. Lancer la fabrication
+    10. Cliquez sur l'onglet "Actions". La fabrication demarre toute seule (une ligne jaune "Compiler l'application
+        TBSA" qui tourne). Si rien ne demarre : cliquez "Compiler l'application TBSA" a gauche, puis a droite
+        "Run workflow" > "Run workflow".
+    11. Attendez que la ligne devienne verte avec une coche (3 a 6 minutes). Si elle devient rouge (croix) :
+        cliquez dessus et envoyez-moi une capture du message d'erreur.
+
+ E. Recuperer le fichier
+    12. Retournez sur la page principale du depot (onglet "Code"). A droite, section "Releases" : cliquez sur
+        "Application TBSA (derniere version)".
+    13. Dans "Assets", cliquez sur  TBSA-Serveur.apk  : il se telecharge. C'est votre application.
+
+=============================================================================================
+ETAPE 2 - L'INSTALLER SUR LE STICK (sans port USB)
+=============================================================================================
+ 1. Copiez TBSA-Serveur.apk dans le dossier de TBSA-Serveur, a cote de TBSA-Serveur.exe (ou server.js).
+    Relancez TBSA-Serveur si besoin. Dans Reglages > Reseau & TV, une adresse du type
+        http://192.168.1.20:8585/apk
+    s'affiche.
+ 2. Sur le stick, installez l'application gratuite "Downloader" (Fire TV : cherchez "Downloader" dans l'Appstore ;
+    Android TV : Google Play).
+ 3. Autorisez Downloader a installer des applications :
+      Fire TV : Parametres > Ma Fire TV > Options pour les developpeurs > "Installer des applis inconnues" >
+                Downloader : active. (Si "Options pour les developpeurs" est absent : Parametres > Ma Fire TV >
+                A propos > cliquez 7 fois sur le nom de l'appareil.)
+      Android TV / Google TV : l'autorisation est demandee au premier telechargement.
+ 4. Ouvrez Downloader, tapez l'adresse http://IP-DU-PC:8585/apk (celle de TBSA-Serveur), "Go", puis "Installer".
+ 5. Lancez "TBSA" depuis vos applications. Elle trouve le serveur toute seule.
+
+    Variante : Downloader peut aussi telecharger directement depuis GitHub, adresse de la forme
+        https://github.com/VOTRE-NOM/tbsa-app/releases/download/apk-latest/TBSA-Serveur.apk
+
+ Autre methode (PC) : installer-sur-stick.bat installe par le reseau (ADB) ; il demande l'adresse IP du stick.
+
+=============================================================================================
+UTILISATION
+=============================================================================================
+  - Telecommande : fleches + OK ; Retour = revenir en arriere ; touche Menu (trois traits) = menu du profil.
+  - Au premier lancement, l'application cherche le serveur. Sinon, saisissez l'adresse (ex. 192.168.1.20:8585).
+  - En direct : Haut/Bas = chaine suivante/precedente, Gauche = liste des chaines, chiffres = numero de chaine.
+  - Taille des affiches : boutons "-" et "+" en haut des pages Films, Series, IPTV.
+
+SON ABSENT SUR LA TELE : les sticks ne lisent pas le son AC3 / DTS / AAC 5.1 de beaucoup de films. TBSA convertit
+alors automatiquement SEULEMENT le son (l'image est conservee telle quelle, sans perte, tres leger) :
+ffmpeg doit etre installe sur le PC (Reglages > Transcodeur). Si malgre tout il n'y a pas de son :
+Preferences (menu du profil) > "Toujours convertir le son en stereo", ou dans le lecteur : Qualite > "Son converti
+seulement".
+
+-------------------------------------------------------------------------------------------------------------
+SI GITHUB AFFICHE "No event triggers defined in on" (fabrication en echec des la premiere seconde)
+-------------------------------------------------------------------------------------------------------------
+ Le fichier .github/workflows/build-apk.yml est vide ou a perdu ses retraits (le collage n'a pas fonctionne).
+ Solution la plus fiable : envoyer le fichier au lieu de le coller.
+   1. Sur la page du depot, ouvrez le dossier  .github  puis  workflows.
+   2. "Add file" > "Upload files". Glissez-deposez le fichier  build-apk.yml  fourni (il remplace l'ancien).
+   3. "Commit changes". La fabrication redemarre toute seule (onglet Actions). Le fichier ouvert sur GitHub doit
+      faire une quarantaine de lignes, avec  "on:"  suivi de lignes decalees vers la droite.
+
+=============================================================================================
+CHANGER L'AFFICHE DE L'APPLICATION SUR LE STICK / METTRE A JOUR L'APPLICATION
+=============================================================================================
+ L'affiche (bannière) vue dans la liste des applications du stick est le fichier banner.png (640 x 360).
+ Pour la changer ou mettre a jour l'application :
+   1. Sur GitHub, ouvrez votre depot, puis le dossier  app / src / main / res / drawable-xhdpi
+   2. "Add file" > "Upload files" : glissez-deposez le nouveau banner.png (il remplace l'ancien) > "Commit changes".
+      (Autre methode : renvoyer tout le contenu du dossier android-app, comme la premiere fois.)
+   3. L'onglet "Actions" relance la fabrication toute seule ; quand elle est verte, telechargez le nouveau
+      TBSA-Serveur.apk dans "Releases" (il remplace l'ancien).
+   4. IMPORTANT - sur le stick, DESINSTALLEZ d'abord l'ancienne application TBSA, sinon l'installation est refusee
+      ("application non installee") car chaque fabrication GitHub est signee avec une cle differente :
+        Fire TV : Parametres > Applications > Gerer les applications installees > TBSA > Desinstaller
+        Android TV / Google TV : Parametres > Applications > TBSA > Desinstaller
+   5. Installez le nouveau TBSA-Serveur.apk (etape 2 de ce guide). L'affiche apparait dans la liste des applications
+      (redemarrez le stick si l'ancienne image reste affichee).
+ Les modifications de l'interface (affiches, menus, lecteur...) n'obligent PAS a refaire l'application : il suffit de
+ mettre a jour TBSA-Serveur sur le PC.
+
+-------------------------------------------------------------------------------------------------------------
+SI LA FABRICATION ECHOUE AVEC "resource drawable/ic_launcher (...) not found"
+-------------------------------------------------------------------------------------------------------------
+ Il manque le fichier de l'icone dans votre depot (ou il n'est pas dans le bon dossier). Deux envois reglent le probleme :
+   1. Dossier  app / src / main / res / drawable-xhdpi  : "Add file" > "Upload files", glissez  ic_launcher.png
+      (et banner.png s'il manque aussi) > "Commit changes".
+   2. Dossier  .github / workflows  : envoyez la nouvelle version de  build-apk.yml  (elle cree automatiquement
+      une icone / une banniere de remplacement si elles manquent, la fabrication ne s'arrete plus pour cette raison).
+ La fabrication redemarre toute seule (onglet Actions).
+
+SANS APPLICATION : le navigateur du stick suffit (Silk, Firefox, TV Bro) : http://IP-DU-PC:8585/?tv=1
+
+PROBLEMES COURANTS
+  - "Serveur introuvable" : PC allume, TBSA-Serveur lance, meme Wi-Fi, pare-feu autorise (autoriser-pare-feu.bat).
+  - Affichage deforme / ecran noir : mettez a jour le composant "Android System WebView" (Google Play) ou le
+    systeme du stick (Fire TV : Parametres > Ma Fire TV > A propos > Rechercher une mise a jour).

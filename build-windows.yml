@@ -1,0 +1,74 @@
+name: Windows - installateur TBSA-Serveur
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Preparer les dossiers
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force dist | Out-Null
+
+      - name: Compiler le serveur (TBSA-Serveur-Core.exe)
+        shell: pwsh
+        run: |
+          npx --yes @yao-pkg/pkg . --targets node22-win-x64 --output dist/TBSA-Serveur-Core.exe
+          if (!(Test-Path dist/TBSA-Serveur-Core.exe)) { throw 'Le serveur n a pas ete compile' }
+
+      - name: Creer l'icone
+        shell: pwsh
+        run: ./build/make-icon.ps1
+
+      - name: Compiler le lanceur d'arriere-plan (TBSA-Serveur.exe)
+        shell: pwsh
+        run: |
+          $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          & $csc /nologo /target:winexe /out:dist\TBSA-Serveur.exe /win32icon:build\TBSA.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll tray\TrayApp.cs
+          if (!(Test-Path dist\TBSA-Serveur.exe)) { throw 'Le lanceur n a pas ete compile' }
+
+      - name: Ajouter l'application Android si elle est disponible
+        shell: pwsh
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (Test-Path TBSA-Serveur.apk) { Copy-Item TBSA-Serveur.apk dist/TBSA-Serveur.apk }
+          else { gh release download apk-latest --pattern TBSA-Serveur.apk --dir dist --repo ${{ github.repository }} }
+
+      - name: Creer l'installateur
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          choco install innosetup -y --no-progress
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          & $iscc /DAppVer=$v installer\tbsa.iss
+          if (!(Test-Path dist\TBSA-Serveur-Setup.exe)) { throw 'L installateur n a pas ete cree' }
+
+      - name: Garder le fichier (onglet Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TBSA-Serveur-Setup
+          path: dist/TBSA-Serveur-Setup.exe
+
+      - name: Publier le fichier (lien de telechargement direct dans Releases)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: TBSA-Serveur pour Windows (derniere version)
+          body: |
+            Telechargez TBSA-Serveur-Setup.exe ci-dessous, puis double-cliquez dessus pour installer.
+          files: dist/TBSA-Serveur-Setup.exe
+          make_latest: false

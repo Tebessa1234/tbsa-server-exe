@@ -1,0 +1,128 @@
+TBSA-Serveur 3.5.0 : votre serveur de films, series et TV, comme Plex, en rouge et noir
+=====================================================================================
+
+DEMARRER (Windows)
+ 0. Dezippez TOUT le contenu de TBSA-Serveur-3.0.zip dans un dossier (clic droit, Extraire tout),
+    par exemple C:\TBSA-Serveur. Ne lancez rien depuis l'interieur du zip.
+ 1. Installez Node.js LTS (nodejs.org).
+ 2. Double-cliquez sur build-exe.bat : il cree TBSA-Serveur.exe DANS CE MEME DOSSIER
+    (le journal est dans build-log.txt). Premiere compilation : 1 a 5 minutes, internet requis.
+    - Si le .exe disparait : Windows Defender l'a mis en quarantaine (faux positif courant).
+      Securite Windows > Protection contre les virus > Historique de protection > Restaurer / Autoriser.
+    - Sans compiler : double-cliquez sur Lancer-TBSA-Serveur.bat (il suffit d'avoir Node.js).
+ 3. (Plex utilise le port 32400 : TBSA-Serveur utilise 8585, ou le suivant si besoin, sans gener Plex.)
+    Lancez TBSA-Serveur.exe : le navigateur s'ouvre sur http://localhost:8585
+    (si le serveur est deja lance, un 2e lancement rouvre simplement le navigateur).
+ 4. Lancez autoriser-pare-feu.bat (il demande les droits administrateur) pour que la tele et le
+    telephone puissent se connecter.
+ 5. Reglages > Bibliotheques > "Ajouter une bibliotheque" : type, nom (ex. Action), dossiers.
+ 6. Reglages > Metadonnees : collez votre cle TMDB (gratuite, themoviedb.org).
+ 7. Reglages > Transcodeur : "Installer ffmpeg" pour lire TOUS les formats.
+
+VOS REGLAGES SONT CONSERVES
+ Sous Windows, tout est enregistre dans  %APPDATA%\TBSA-Serveur  (bibliotheques, profils, PIN, progression,
+ listes, fiches modifiees). Que vous lanciez le .exe, le .bat ou "node server.js", c'est le meme dossier :
+ rien a reconfigurer apres un arret ou une mise a jour. Les reglages d'une ancienne version (dossier "data"
+ a cote du programme) sont repris automatiquement. Le dossier est affiche dans Reglages > General ;
+ une alerte apparait si Windows empeche l'ecriture.
+
+SCANNER SANS ALLER DANS LES REGLAGES
+ Bouton "Scanner / actualiser" en haut des pages Films et Series, et icone fleche circulaire dans la barre du haut.
+
+SERIES : NOMS DE DOSSIERS ET DE FICHIERS TOLERANTS (comme Plex)
+ Le nom de la serie est deduit du dossier, en retirant la saison ou l'episode qu'il contient :
+   "Breaking Bad S01", "Breaking Bad S02"          -> UNE serie "Breaking Bad" (saisons 1, 2...)
+   "Snowfall S04E01", "Snowfall S04E02"            -> UNE serie "Snowfall"
+   "Narcos Mexico Saison 2", "Dexter\Season 1"     -> series "Narcos Mexico" et "Dexter"
+ S01E01, s01e02, 1x03, "Saison 1 Episode 4", "Serie - 05" sont reconnus ; casse, points, tirets et accents sont ignores.
+ Apres une mise a jour : bouton "Scanner / actualiser" (pages Films / Series). Les affiches des series se
+ recuperent alors toutes seules (cle TMDB requise). Votre progression de lecture est conservee.
+
+MUSIQUE D'AMBIANCE
+ Fenetre Modifier > onglet Musique : Automatique, Aucune, ou Personnalisee (fichier mp3/m4a/ogg/wav envoye,
+ adresse, ou recherche d'un extrait de 30 s). La musique automatique n'est choisie en ligne que si l'album
+ correspond EXACTEMENT au titre (sinon aucune musique plutot qu'une mauvaise).
+
+FORMATS VIDEO RECONNUS (49)
+ 3g2 3gp 3gpp amv asf avi dat divx dv evo f4v flc fli flv ivf m1v m2t m2ts m2v m4v mjpeg mjpg mkv mod mov mp4
+ mpe mpeg mpg mts mtv mxf nsv nut ogg ogv qt ra rm rmvb swf tod tp trp ts vob webm wmv xvid
+ (.dat .ogg .ra .mod : ignores s'ils font moins de 8 Mo, car ce sont souvent des fichiers audio ou systeme).
+ Lecture directe quand l'appareil sait les lire, sinon conversion automatique en H.264/AAC par ffmpeg.
+
+TAILLE DES AFFICHES
+ Boutons "-" et "+" (et curseur) en haut des pages Films, Series et IPTV, comme dans Plex. Reglage memorise par profil.
+
+SON ET LECTURE SUR TELE / STICK
+ Si le son n'est pas lisible (AC3, DTS, AAC 5.1...), seul le son est converti : l'image est copiee telle quelle,
+ sans perte et sans effort pour le PC. Plus aucun message "Conversion" sur l'ecran. Menu du lecteur > Qualite pour
+ choisir, et Preferences > "Toujours convertir le son" si besoin.
+
+TELECOMMANDE DANS LE LECTEUR (stick TV)
+ Bas = afficher les commandes ; Droite jusqu'a "Reglages" puis OK = menu Audio / Qualite / Vitesse / Sous-titres
+ (Haut/Bas pour choisir, OK pour valider) ; la touche Menu de la telecommande ouvre aussi ce menu ;
+ Gauche/Droite (commandes masquees) = reculer / avancer de 10 s ; Retour = fermer le menu, puis le lecteur.
+ L'interface s'adapte automatiquement a la taille de l'ecran du stick. Taille des affiches : boutons - et +
+ en haut des pages Films / Series (reglage memorise).
+ Mise a jour : remplacez les fichiers du serveur puis relancez-le ; l'application du stick n'a PAS besoin d'etre refaite.
+
+SAGAS DE FILMS (comme les collections de Plex)
+ Les films d'une meme saga (Saw, Terminator, Resident Evil...) sont regroupes sous UNE seule affiche "SAGA" avec le nombre
+ de films ; un clic ouvre la page de la saga (films dans l'ordre de sortie, "Lecture de la saga" qui enchaine les films,
+ "Tout marquer comme vu", "+ Ma liste"). Chaque film indique aussi les autres films de sa saga.
+ - Detection automatique grace a TMDB (cle TMDB requise). Apres la mise a jour, les fiches sont recuperees une fois de
+   plus en arriere-plan pour lire les sagas : patientez quelques minutes.
+ - Film non reconnu ou saga a vous : fenetre Modifier > Général > "Saga" (taper un nom, "Aucune saga" ou "Automatique").
+ - Reglages > Général > "Sagas de films" : desactiver, ou regrouper a partir de 2, 3 ou 4 films (2 par defaut).
+
+EPISODE SUIVANT (series) ET FILM SUIVANT (sagas)
+ 10 secondes avant la fin, une petite fenetre apparait en bas a droite avec l'episode suivant deja charge (premiere image,
+ titre, compte a rebours). A la fin de l'episode, elle grandit jusqu'au plein ecran et la lecture continue sans coupure.
+ Telecommande : OK = lire tout de suite ; Retour = annuler (la lecture s'arrete a la fin de l'episode en cours).
+ Preferences (menu du profil) : "Lire automatiquement l'episode suivant" pour l'activer ou la desactiver.
+ (IPTV : la fenetre s'affiche aussi, sans apercu video, car la plupart des fournisseurs n'autorisent qu'une connexion.)
+
+CHOISIR UN EPISODE A LA TELECOMMANDE
+ Page d'une serie : Bas depuis "Lecture" jusqu'aux episodes, OK sur l'episode voulu (la liste complete suit ensuite).
+ Apres la lecture, le curseur revient sur le dernier episode regarde.
+
+SECURITE : creez un PIN sur votre profil administrateur (Reglages > Profils) pour proteger les reglages.
+Le profil "enfant" n'a pas acces aux reglages et peut etre limite a certaines bibliotheques.
+
+CE QUE FAIT TBSA-SERVEUR
+ - Profils (PIN, enfant) avec progression, "Reprendre la lecture", vu / non vu et "Ma liste" par profil.
+ - Accueil style Netflix : bandeau, Reprendre, Ma liste, Ajoutes recemment, Top 10, "Parce que vous avez
+   regarde...", rangees par genre et par collection.
+ - Fiches film / serie : resume, casting, realisateur, note, infos techniques, saisons et episodes,
+   titres similaires de votre bibliotheque + recommandations "A decouvrir".
+ - Musique d'ambiance sur les fiches : placez un fichier theme.mp3 dans le dossier du film ou de la serie,
+   sinon un extrait de la bande originale est cherche en ligne (desactivable).
+ - Modifier une fiche (comme Plex) : titre, annee, resume, genres, realisateurs, pays, collections,
+   CHANGER L'AFFICHE ET L'ARRIERE-PLAN (images TMDB, fichier envoye, ou adresse), corriger la correspondance TMDB.
+   Affiches locales aussi : poster.jpg / folder.jpg / fanart.jpg dans le dossier.
+ - Scan : automatique (dossiers surveilles + delai reglable) ou a la demande (Reglages > Bibliotheques :
+   Scanner / Actualiser les infos).
+ - Lecteur : sous-titres (fichiers .srt/.vtt/.ass et pistes integrees), pistes audio, qualite (1080p a 360p),
+   vitesse, saut dans la video meme en conversion, episode suivant automatique.
+ - IPTV : Xtream Codes (TV en direct avec guide EPG, films, series) et playlist M3U.
+   Dans le lecteur : Haut / Bas = changer de chaine, Gauche = liste des chaines, chiffres = numero de chaine,
+   etoile = favori.
+ - Tableau de bord (Reglages > Activite) : lectures en cours, historique, statistiques, journal.
+
+TELE ET TELEPHONE
+ - STICK TV (Fire TV, Android TV, Google TV) : voir LISEZMOI-STICK.txt (application TBSA, installation par
+   Downloader depuis http://IP-DU-PC:8585/apk).
+ - Navigateur de la tele : http://IP-DU-PC:8585/?tv=1 (mode telecommande : fleches, OK, Retour).
+ - Application Android (telephone / Android TV) : projet TBSA-Android-projet.zip (voir son LISEZMOI).
+   Elle retrouve le serveur toute seule.
+
+RACCOURCIS DU LECTEUR (clavier / telecommande)
+ Espace/OK = lecture/pause - Gauche/Droite = -10 s/+10 s - Haut/Bas = afficher les commandes (ou chaine +/-
+ en direct) - C = sous-titres - F = plein ecran - M = muet - Retour/Echap = fermer.
+
+FORMATS : tous les fichiers video courants sont reconnus (mp4, mkv, avi, ts, m2ts, mpg, wmv, flv, mov, webm,
+vob, 3gp...). Lecture directe quand l'appareil sait les lire, sinon conversion automatique avec ffmpeg.
+
+BANDES-ANNONCES (3.5.0)
+Sur chaque fiche de film ou de serie, le bouton "Bande-annonce" lit la video trouvee via votre cle TMDB (YouTube, internet necessaire).
+Sans internet : placez un fichier a cote du film, nomme "Nom du film (2020)-trailer.mp4" (ou "trailer.mp4" dans le dossier d'une serie, ou un dossier "Trailers").
+Ces fichiers ne sont jamais ajoutes comme des films.

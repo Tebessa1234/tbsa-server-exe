@@ -1,0 +1,58 @@
+TBSA-SERVEUR POUR WINDOWS - UN SEUL FICHIER D'INSTALLATION
+==========================================================
+
+Resultat : un fichier  TBSA-Serveur-Setup.exe  a donner a vos amis (cle USB, lien...).
+Ils double-cliquent, ils cliquent sur Suivant, et c'est installe :
+ - le serveur tourne en arriere-plan (icone pres de l'horloge, comme Plex)
+ - il demarre tout seul avec Windows
+ - chaque installation est VIDE : l'ami choisit lui-meme ses dossiers de films et de series,
+   entre sa propre cle TMDB et son propre compte Xtream (Reglages)
+ - rien de VOS reglages n'est dans le fichier : aucun acces a votre serveur
+ - l'application Android (TBSA-Serveur.apk) est la meme pour tout le monde : sur la tele
+   de l'ami, elle trouve le serveur de SON reseau, pas le votre
+
+------------------------------------------------------------
+A) FABRIQUER TBSA-Serveur-Setup.exe (une seule fois, avec GitHub)
+------------------------------------------------------------
+1. Sur github.com, creez un nouveau depot (bouton "New"), par exemple "TBSA-Windows" (prive ou public).
+2. Dezippez TBSA-Windows-installateur.zip sur votre PC.
+3. Dans le depot : "Add file" > "Upload files" > glissez TOUT le contenu du dossier dezippe
+   (fichiers ET dossiers : assets, build, installer, tray, et le dossier .github si Windows l'affiche).
+   Cliquez "Commit changes".
+4. Si le dossier ".github" n'a pas ete envoye (Windows cache les dossiers commencant par un point) :
+   dans le depot, "Add file" > "Create new file", tapez dans le nom exactement
+   .github/workflows/build-windows.yml
+   Ouvrez ensuite le fichier build-windows.yml du dossier dezippe avec le Bloc-notes, copiez TOUT le texte,
+   collez-le dans la page GitHub, puis "Commit changes".
+5. Onglet "Actions" : la fabrication demarre toute seule (5 a 10 minutes). Attendez la coche verte.
+6. Onglet "Code" > a droite "Releases" > "TBSA-Serveur pour Windows" > telechargez TBSA-Serveur-Setup.exe.
+
+Pour inclure aussi l'application Android dans l'installateur : mettez TBSA-Serveur.apk a la racine du depot
+(ou fabriquez-la dans ce meme depot). L'ordinateur de l'ami pourra alors la servir a sa tele (http://IP:8585/apk).
+
+------------------------------------------------------------
+B) INSTALLER (vous ou un ami)
+------------------------------------------------------------
+1. Double-cliquez sur TBSA-Serveur-Setup.exe.
+2. Windows affiche "Windows a protege votre PC" (le fichier n'est pas signe) :
+   cliquez sur "Informations complementaires" puis "Executer quand meme".
+3. Autorisez l'installation (fenetre Oui/Non), puis Suivant > Installer > Terminer.
+4. Le navigateur s'ouvre sur TBSA-Serveur. Premier lancement : Reglages >
+   - Bibliotheques : choisir ses dossiers de films / series
+   - Metadonnees : coller SA cle TMDB (gratuite sur themoviedb.org)
+   - IPTV : entrer SON compte Xtream
+5. Sur la tele : installer TBSA-Serveur.apk (voir LISEZMOI-STICK.txt). Elle trouve le serveur toute seule
+   (PC et tele sur le meme reseau Wi-Fi / Ethernet).
+
+Au quotidien : icone pres de l'horloge (fleche ^ si cachee) > clic droit :
+Ouvrir / dossier des donnees / journal / Redemarrer / Quitter.
+
+------------------------------------------------------------
+C) DESINSTALLER / REINSTALLER / NOUVEAU PC
+------------------------------------------------------------
+- Parametres Windows > Applications > TBSA-Serveur > Desinstaller.
+  Il demande "Supprimer aussi vos donnees ?" : repondez NON pour les garder.
+  Reinstaller plus tard = tout est retrouve (bibliotheques, profils, cles, notes, affiches modifiees).
+- Les donnees sont dans  %APPDATA%\TBSA-Serveur
+- Nouveau PC / Windows reinstalle : sur l'ancien, Reglages > General > Sauvegarde > "Telecharger une sauvegarde"
+  (un fichier .tbsa a garder sur cle USB). Sur le nouveau : Reglages > General > "Restaurer une sauvegarde".
