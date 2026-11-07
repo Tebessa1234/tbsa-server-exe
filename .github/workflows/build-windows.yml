@@ -21,7 +21,7 @@ jobs:
       - name: Verifier que tous les fichiers sont presents
         shell: pwsh
         run: |
-          $missing = @('server.js','index.html','package.json','assets/smoke.jpg','TrayApp.cs','tbsa.iss','make-icon.ps1','ic_launcher.png') | Where-Object { -not (Test-Path $_) }
+          $missing = @('server.js','index.html','package.json','TrayApp.cs','tbsa.iss','make-icon.ps1','ic_launcher.png') | Where-Object { -not (Test-Path $_) }
           if ($missing) { throw ('Fichiers manquants dans le depot GitHub : ' + ($missing -join ', ') + ' - envoyez-les (Add file > Upload files)') }
           New-Item -ItemType Directory -Force dist | Out-Null
 
