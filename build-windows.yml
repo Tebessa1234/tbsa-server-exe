@@ -18,9 +18,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Preparer les dossiers
+      - name: Verifier que tous les fichiers sont presents
         shell: pwsh
-        run: New-Item -ItemType Directory -Force dist | Out-Null
+        run: |
+          $missing = @('server.js','index.html','package.json','assets/smoke.jpg','TrayApp.cs','tbsa.iss','make-icon.ps1','ic_launcher.png') | Where-Object { -not (Test-Path $_) }
+          if ($missing) { throw ('Fichiers manquants dans le depot GitHub : ' + ($missing -join ', ') + ' - envoyez-les (Add file > Upload files)') }
+          New-Item -ItemType Directory -Force dist | Out-Null
 
       - name: Compiler le serveur (TBSA-Serveur-Core.exe)
         shell: pwsh
@@ -30,13 +33,13 @@ jobs:
 
       - name: Creer l'icone
         shell: pwsh
-        run: ./build/make-icon.ps1
+        run: ./make-icon.ps1
 
       - name: Compiler le lanceur d'arriere-plan (TBSA-Serveur.exe)
         shell: pwsh
         run: |
           $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-          & $csc /nologo /target:winexe /out:dist\TBSA-Serveur.exe /win32icon:build\TBSA.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll tray\TrayApp.cs
+          & $csc /nologo /target:winexe /out:dist\TBSA-Serveur.exe /win32icon:TBSA.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll TrayApp.cs
           if (!(Test-Path dist\TBSA-Serveur.exe)) { throw 'Le lanceur n a pas ete compile' }
 
       - name: Ajouter l'application Android si elle est disponible
@@ -54,7 +57,7 @@ jobs:
           $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
           choco install innosetup -y --no-progress
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          & $iscc /DAppVer=$v installer\tbsa.iss
+          & $iscc /DAppVer=$v tbsa.iss
           if (!(Test-Path dist\TBSA-Serveur-Setup.exe)) { throw 'L installateur n a pas ete cree' }
 
       - name: Garder le fichier (onglet Actions)
