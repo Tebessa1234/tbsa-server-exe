@@ -1088,6 +1088,7 @@ function playPlan(d) {
   var audioOK = !ac || ['aac', 'mp3', 'opus', 'vorbis', 'flac'].indexOf(ac) >= 0;      // AC3, E-AC3, DTS, TrueHD… : pas lisibles dans un navigateur
   if (audioOK && ac && (tr.ch || 2) > 2 && (isTV() || prefs().forceAudio)) audioOK = false;   // AAC multicanal : souvent muet sur les sticks TV
   if (prefs().forceAudio && ac) audioOK = false;
+  if (prefs().adelay && ac) audioOK = false;                                             // décalage du son demandé : il faut passer par la conversion
   if (dflt && au.indexOf(dflt) > 0) audioOK = false;                                    // piste audio par défaut ≠ première
   if (videoOK && okCont && audioOK) return 'direct';
   return h264ok ? 'remux' : 'full';
@@ -1156,7 +1157,7 @@ async function planFor(d) {
 }
 function srcFor(d, plan, t) {
   if (plan.mode === 'direct') return d.kind === 'local' ? '/stream/' + d.id : d.src;
-  return (d.kind === 'local' ? '/transcode/' + d.id : d.conv) + '?t=' + Math.floor(t) + '&q=' + (plan.qsel === 'orig' ? 'auto' : plan.qsel) + '&a=' + plan.audio;
+  return (d.kind === 'local' ? '/transcode/' + d.id : d.conv) + '?t=' + Math.floor(t) + '&q=' + (plan.qsel === 'orig' ? 'auto' : plan.qsel) + '&a=' + plan.audio + '&d=' + (prefs().adelay || 0);
 }
 function startPosOf(d) { var pr = d.k ? prog(d.k) : null; if (!d.fromStart && pr && !pr.w && pr.dur && pr.pos / pr.dur > 0.02 && pr.pos / pr.dur < 0.92) return pr.pos; return d.startAt != null ? d.startAt : 0; }
 async function startItem() {
@@ -1180,7 +1181,11 @@ function begin(t) {
   var v = PL.v, d = PL.d; t = Math.max(0, t || 0); PL.off = 0; PL.err = false;
   var errBox = $('.mid', PL.root); errBox.innerHTML = '<div class="spin"></div>';
   if (PL.mode === 'direct') { v.src = d.kind === 'local' ? '/stream/' + d.id : d.src; if (t > 1) v.addEventListener('loadedmetadata', function f() { v.removeEventListener('loadedmetadata', f); try { v.currentTime = t; } catch (e) {} }); }
-  else { PL.off = t; v.src = (d.kind === 'local' ? '/transcode/' + d.id : d.conv) + '?t=' + Math.floor(t) + '&q=' + (PL.qsel === 'orig' ? 'auto' : PL.qsel) + '&a=' + PL.audio; }
+  else {
+    var bt = PL.bt = (PL.bt || 0) + 1, go = function (tt) { if (bt !== PL.bt || !PL.open) return; PL.off = tt; v.src = (d.kind === 'local' ? '/transcode/' + d.id : d.conv) + '?t=' + (+tt).toFixed(3) + '&q=' + (PL.qsel === 'orig' ? 'auto' : PL.qsel) + '&a=' + PL.audio + '&d=' + (prefs().adelay || 0); v.playbackRate = PL.rate || 1; v.play().catch(function () {}); applySub(); };
+    if (PL.qsel === 'remux' && d.kind === 'local' && t > 0.5) { api('/api/kf/' + d.id + '?t=' + t).then(function (r) { go(r && r.t != null ? r.t : t); }).catch(function () { go(t); }); } else go(t);
+    return;
+  }
   v.playbackRate = PL.rate || 1; v.play().catch(function () {}); applySub();
 }
 function applySub() {
@@ -1272,13 +1277,16 @@ function openMenu(kind) {
   closeMenu(); closeDrawer(); var m = el('div', 'pmenu'), d = PL.d, inf = PL.info && PL.info.info;
   var item = function (label, on, fn) { var a = el('a', on ? 'on' : '', esc(label)); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeMenu(); fn(); showCtl(); }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; m.append(a); return a; };
   if (kind === 'aud' || kind === 'all') {
+    var dl = prefs().adelay || 0, canA = d.kind === 'local' && PL.info && PL.info.ffmpeg, setDelay = function (n) { if (!canA) { toast('Le décalage du son nécessite ffmpeg sur le serveur'); return; } var t = curPos(); setPref('adelay', n); if (PL.mode === 'direct') { PL.mode = 'transcode'; PL.qsel = 'remux'; } toast('Décalage du son : ' + (n > 0 ? '+' : '') + n + ' ms'); begin(t); };
+    m.append(el('h4', '', 'Décalage du son : ' + (dl > 0 ? '+' : '') + dl + ' ms'));
+    item('Son en avance sur l’image : retarder (+100 ms)', false, function () { setDelay(Math.min(3000, dl + 100)); }); item('Son en retard sur l’image : avancer (−100 ms)', false, function () { setDelay(Math.max(-3000, dl - 100)); }); if (dl) item('Remettre à 0', false, function () { setDelay(0); });
     m.append(el('h4', '', 'Piste audio')); var au = inf ? inf.audio : []; if (!au.length) m.append(el('h4', '', 'Piste unique'));
     au.forEach(function (a, n) { item((langFr(a.lang) || 'Piste ' + (n + 1)) + ' · ' + String(a.codec).toUpperCase() + (a.ch ? ' ' + (a.ch > 2 ? (a.ch - 1) + '.1' : a.ch + '.0') : '') + (a.title ? ' · ' + a.title : ''), PL.audio === n, function () { var t = curPos(), dflt = au.filter(function (z) { return z.def; })[0], di = dflt ? au.indexOf(dflt) : 0; PL.audio = n; if (PL.mode === 'direct' && n === di) return; if (!PL.info.ffmpeg) { toast('Changer de piste audio nécessite ffmpeg sur le serveur'); return; } PL.mode = 'transcode'; if (PL.qsel === 'orig') PL.qsel = prefs().quality || 'auto'; begin(t); }); });
   }
   if (kind === 'qual' || kind === 'all') {
     m.append(el('h4', '', 'Qualité')); var can = (d.kind === 'local' ? PL.info && PL.info.ffmpeg : d.conv && S.cfg.ffmpeg);
-    var q = function (key, label) { item(label, PL.qsel === key, function () { var t = curPos(); if (key === 'orig') { PL.mode = 'direct'; PL.qsel = 'orig'; } else { if (!can) { toast('La conversion nécessite ffmpeg sur le serveur'); return; } PL.mode = 'transcode'; PL.qsel = key; } begin(t); }); };
-    q('orig', 'Original (lecture directe)'); q('remux', 'Son converti seulement (rapide, image d’origine)'); q('auto', 'Auto (conversion complète)'); q('1080', '1080p · 8 Mb/s'); q('720', '720p · 4 Mb/s'); q('480', '480p · 1,5 Mb/s'); q('360', '360p · 0,8 Mb/s');
+    var q = function (key, label) { item(label, PL.qsel === key, function () { var t = curPos(); if (key === 'orig') { var pl0 = can && PL.info ? playPlan(PL.info) : 'direct'; if (pl0 === 'direct') { PL.mode = 'direct'; PL.qsel = 'orig'; } else { PL.mode = 'transcode'; PL.qsel = pl0 === 'remux' ? 'remux' : 'auto'; toast('Son converti automatiquement (AC3/DTS non lisible ici)'); } } else { if (!can) { toast('La conversion nécessite ffmpeg sur le serveur'); return; } PL.mode = 'transcode'; PL.qsel = key; } begin(t); }); };
+    q('orig', 'Original (image d’origine)'); q('remux', 'Son converti seulement (rapide, image d’origine)'); q('auto', 'Auto (conversion complète)'); q('1080', '1080p · 8 Mb/s'); q('720', '720p · 4 Mb/s'); q('480', '480p · 1,5 Mb/s'); q('360', '360p · 0,8 Mb/s');
     m.append(el('h4', '', 'Vitesse')); [0.75, 1, 1.25, 1.5, 2].forEach(function (r) { item(r + '×', (PL.rate || 1) === r, function () { PL.rate = r; PL.v.playbackRate = r; }); });
     }
   if (kind === 'subs' || kind === 'all') {

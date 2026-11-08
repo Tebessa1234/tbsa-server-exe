@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.1', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.3', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -492,8 +492,15 @@ async function transcode(req, res, it, q) {
   if (qual === 'remux' && !/^https?:/.test(it.file)) { const pr = await probe(it.file), v = pr && pr.video; copyV = !!v && v.codec === 'h264' && !/10|4:2:2|4:4:4/.test(v.profile || '') && !v.hdr; }
   if (res.destroyed || res.writableEnded) return;
   const vArgs = copyV ? ['-c:v', 'copy', '-avoid_negative_ts', 'make_zero'] : videoArgs(qual === 'remux' ? 'auto' : qual);
-  const args = ['-v', 'error', ...(/^https?:/.test(it.file) ? ['-user_agent', 'Mozilla/5.0'] : []), '-ss', String(t), '-i', it.file, '-map', '0:v:0', '-map', '0:a:' + a + '?', '-sn', '-dn', ...vArgs,
-    '-c:a', 'aac', '-b:a', Q.a, '-ac', '2', '-write_tmcd', '0', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-f', 'mp4', 'pipe:1'];
+  // Son : mélange stéréo, recalage sur l'image (pas de dérive) + décalage réglable (ms) pour compenser le retard propre à chaque téléviseur
+  const dly = Math.max(-3000, Math.min(3000, Math.round(+q.get('d') || 0)));
+  const af = ['aresample=ocl=stereo', ...(dly > 0 ? ['adelay=' + dly + '|' + dly] : []), 'aresample=async=1'].join(',');
+  if (dly < 0) {   // son à avancer : on retarde l'image d'autant
+    const x = (-dly / 1000).toFixed(3), i = vArgs.indexOf('-vf');
+    if (copyV) vArgs.push('-bsf:v', 'setts=ts=TS+' + x + '/TB'); else if (i >= 0) vArgs[i + 1] += ',setpts=PTS+' + x + '/TB';
+  }
+  const args = ['-v', 'error', ...(/^https?:/.test(it.file) ? ['-user_agent', 'Mozilla/5.0'] : []), ...(copyV && t > 0 ? ['-noaccurate_seek', '-ss', String(t + 0.4)] : ['-ss', String(t)]), '-i', it.file, '-map', '0:v:0', '-map', '0:a:' + a + '?', '-sn', '-dn', ...vArgs,
+    '-af', af, '-c:a', 'aac', '-b:a', Q.a, '-ac', '2', '-write_tmcd', '0', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-f', 'mp4', 'pipe:1'];
   res.writeHead(200, { 'Content-Type': 'video/mp4', 'Cache-Control': 'no-store' });
   const f = spawn(FFMPEG, args, { stdio: ['ignore', 'pipe', 'pipe'] }); let err = '';
   ACTIVE.add(f); f.stderr.on('data', d => err = (err + d).slice(-400));
@@ -663,6 +670,14 @@ SRV = http.createServer(async (req, res) => {
     if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const lt = localTrailer(i); if (lt) return J(req, res, { local: true }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
     if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && localTrailer(i); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
     if (p.startsWith('/api/item/')) { const i = itemFor(me, +p.slice(10)); return i ? J(req, res, itemFull(i, S)) : J(req, res, { error: 'introuvable' }, 404); }
+    if (p.startsWith('/api/kf/')) {   // image clé juste avant t : en copiant la vidéo, le son et l'image démarrent alors exactement ensemble
+      const i = itemFor(me, +p.slice(8)), t = Math.max(0, +q.get('t') || 0); if (!i || !FFPROBE || /^https?:/.test(i.file)) return J(req, res, { t });
+      try {
+        const out = await new Promise(r => execFile(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', '-read_intervals', Math.max(0, t - 40) + '%' + (t + 0.05), i.file], { timeout: 15000, maxBuffer: 4e6 }, (e, so) => r(String(so || ''))));
+        let k = null; for (const ln of out.split('\n')) { const [pt, fl] = ln.split(','); const x = parseFloat(pt); if (/K/.test(fl || '') && x <= t + 0.001 && (k === null || x > k)) k = x; }
+        return J(req, res, { t: k === null ? t : Math.max(0, +k.toFixed(3)) });
+      } catch { return J(req, res, { t }); }
+    }
     if (p.startsWith('/api/info/')) {
       const i = itemFor(me, +p.slice(10)); if (!i) return J(req, res, { error: 'introuvable' }, 404);
       const info = await probe(i.file), ext = extSubs(i.file).map(s => ({ id: s.id, label: s.label, lang: s.lang, src: 'ext' }));
