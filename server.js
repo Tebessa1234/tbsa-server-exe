@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.3', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.4', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -494,20 +494,32 @@ async function transcode(req, res, it, q) {
   const vArgs = copyV ? ['-c:v', 'copy', '-avoid_negative_ts', 'make_zero'] : videoArgs(qual === 'remux' ? 'auto' : qual);
   // Son : mélange stéréo, recalage sur l'image (pas de dérive) + décalage réglable (ms) pour compenser le retard propre à chaque téléviseur
   const dly = Math.max(-3000, Math.min(3000, Math.round(+q.get('d') || 0)));
-  const af = ['aresample=ocl=stereo', ...(dly > 0 ? ['adelay=' + dly + '|' + dly] : []), 'aresample=async=1'].join(',');
+  const af = ['aformat=channel_layouts=stereo', ...(dly > 0 ? ['adelay=' + dly + '|' + dly] : []), 'aresample=async=1'].join(',');
   if (dly < 0) {   // son à avancer : on retarde l'image d'autant
     const x = (-dly / 1000).toFixed(3), i = vArgs.indexOf('-vf');
     if (copyV) vArgs.push('-bsf:v', 'setts=ts=TS+' + x + '/TB'); else if (i >= 0) vArgs[i + 1] += ',setpts=PTS+' + x + '/TB';
   }
-  const args = ['-v', 'error', ...(/^https?:/.test(it.file) ? ['-user_agent', 'Mozilla/5.0'] : []), ...(copyV && t > 0 ? ['-noaccurate_seek', '-ss', String(t + 0.4)] : ['-ss', String(t)]), '-i', it.file, '-map', '0:v:0', '-map', '0:a:' + a + '?', '-sn', '-dn', ...vArgs,
-    '-af', af, '-c:a', 'aac', '-b:a', Q.a, '-ac', '2', '-write_tmcd', '0', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-f', 'mp4', 'pipe:1'];
+  const ua = /^https?:/.test(it.file) ? ['-user_agent', 'Mozilla/5.0'] : [], tail = ['-write_tmcd', '0', '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-f', 'mp4', 'pipe:1'];
+  const full = ['-v', 'error', ...ua, ...(copyV && t > 0 ? ['-noaccurate_seek', '-ss', String(t + 0.4)] : ['-ss', String(t)]), '-i', it.file, '-map', '0:v:0', '-map', '0:a:' + a + '?', '-sn', '-dn', ...vArgs, '-af', af, '-c:a', 'aac', '-b:a', Q.a, '-ac', '2', ...tail];
+  // Plan B (réglages les plus simples) si cette version de ffmpeg refuse une option ci-dessus : l'image est alors lue sans réglage fin du son
+  const vBase = copyV ? ['-c:v', 'copy', '-avoid_negative_ts', 'make_zero'] : videoArgs(qual === 'remux' ? 'auto' : qual);
+  const simple = ['-v', 'error', ...ua, '-ss', String(t), '-i', it.file, '-map', '0:v:0', '-map', '0:a:' + a + '?', '-sn', '-dn', ...vBase, '-c:a', 'aac', '-b:a', Q.a, '-ac', '2', ...tail];
   res.writeHead(200, { 'Content-Type': 'video/mp4', 'Cache-Control': 'no-store' });
-  const f = spawn(FFMPEG, args, { stdio: ['ignore', 'pipe', 'pipe'] }); let err = '';
-  ACTIVE.add(f); f.stderr.on('data', d => err = (err + d).slice(-400));
-  f.stdout.pipe(res);
-  f.on('error', e => { log('ffmpeg : ' + e.message); ACTIVE.delete(f); res.end(); });
-  f.on('close', code => { ACTIVE.delete(f); if (code && !res.destroyed && err.trim()) log('ffmpeg (' + it.title + ') : ' + err.trim().split('\n').pop()); res.end(); });
-  res.on('close', () => { try { f.kill('SIGKILL'); } catch {} });
+  let cur = null;
+  const launch = (args, last) => {
+    const f = spawn(FFMPEG, args, { stdio: ['ignore', 'pipe', 'pipe'] }); let err = '', sent = 0; cur = f;
+    ACTIVE.add(f); f.stderr.on('data', d => err = (err + d).slice(-600));
+    f.stdout.on('data', d => { sent += d.length; if (!res.destroyed) res.write(d); });
+    f.on('error', e => { log('ffmpeg : ' + e.message); ACTIVE.delete(f); res.end(); });
+    f.on('close', code => {
+      ACTIVE.delete(f);
+      if (code && err.trim()) log('ffmpeg (' + it.title + ') : ' + err.trim().split('\n').pop());
+      if (code && !sent && !last && !res.destroyed) { log('Nouvel essai avec des réglages simples'); return launch(simple, true); }
+      res.end();
+    });
+  };
+  launch(full, false);
+  res.on('close', () => { try { cur && cur.kill('SIGKILL'); } catch {} });
 }
 
 /* ---------- Sortie des éléments pour un utilisateur ---------- */
