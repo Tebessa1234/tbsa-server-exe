@@ -352,8 +352,8 @@ async function enter(user) {
   await reloadAll(); buildHeader(); if (!location.hash || location.hash === '#/') location.hash = '#/home'; route();
 }
 async function reloadAll() {
-  var r = await Promise.all([api('/api/config'), api('/api/library'), api('/api/state'), api('/api/categories')]);
-  S.cfg = r[0]; S.lib = r[1]; S.st = r[2]; S.cats = r[3].list; rebuild();
+  var r = await Promise.all([api('/api/config'), api('/api/library'), api('/api/state'), api('/api/categories'), api('/api/saga-ov').catch(function () { return {}; })]);
+  S.cfg = r[0]; S.lib = r[1]; S.st = r[2]; S.cats = r[3].list; S.sagaOv = r[4] || {}; rebuild();
 }
 async function refreshLib() { S.lib = await api('/api/library'); rebuild(); }
 async function refreshState() { S.st = await api('/api/state'); }
@@ -370,6 +370,10 @@ function mergeSagas() {
   // une même saga présente dans deux bibliothèques (ex. Resident Evil films / animés) reste séparée : un identifiant par bibliothèque
   var libsOf = {}; S.lib.forEach(function (i) { if (i.type === 'movies' && i.col) (libsOf[i.col.id] = libsOf[i.col.id] || {})[i.libId] = 1; });
   S.lib.forEach(function (i) { if (i.type === 'movies' && i.col && Object.keys(libsOf[i.col.id]).length > 1) { var lib = S.cfg && S.cfg.libraries[i.libId]; i.col = Object.assign({}, i.col, { id: i.col.id + '@' + i.libId, lib: lib ? lib.name : '' }); } });
+  applySagaOv();
+}
+function applySagaOv() {
+  var ov = S.sagaOv || {}; S.lib.forEach(function (i) { if (i.type === 'movies' && i.col && ov[i.col.id]) { var o = ov[i.col.id]; i.col = Object.assign({}, i.col, { name: o.title || i.col.name, p: o.poster || i.col.p, b: o.backdrop || i.col.b }); } });
 }
 function mergeSagasIn(films) {
   if (films.length < 2) return;
@@ -895,17 +899,44 @@ ROUTES.saga = async function (v, p) {
   var id = p[0], items = sagaItems(id); v.innerHTML = '';
   if (!items.length) { v.innerHTML = '<div class="emp">Saga introuvable (la bibliothèque a peut-être changé).</div>'; return; }
   var m = mSaga(id, items), f0 = null; try { f0 = await api('/api/item/' + items[0].id); } catch (e) {}
-  var f = { backdrop: (f0 && f0.backdrop) || m.bd || '', rating: m.rating, genres: m.genres, overview: 'Saga de ' + items.length + ' films, dans l’ordre de sortie : ' + items.map(function (i) { return i.name || i.title; }).join(' · ') + '.', tagline: '', cert: '', runtime: 0, directors: [], writers: [], countries: [], status: '' };
+  var f = { backdrop: (items[0].col && items[0].col.b) || (f0 && f0.backdrop) || m.bd || '', rating: m.rating, genres: m.genres, overview: 'Saga de ' + items.length + ' films, dans l’ordre de sortie : ' + items.map(function (i) { return i.name || i.title; }).join(' · ') + '.', tagline: '', cert: '', runtime: 0, directors: [], writers: [], countries: [], status: '' };
   v.append(heroDetail(f, m, function (h) {
     var a = $('.acts', h), allW = items.every(function (i) { return isW(i.k); }), some = items.some(function (i) { return isW(i.k); }), next = items.filter(function (i) { return !isW(i.k); })[0];
     a.append(actBtn(allW ? 'Revoir la saga' : (some ? 'Film suivant · ' + (next.name || next.title) : 'Lecture de la saga'), 'red', function () { if (allW) play(items.map(function (i) { return descLocal(i, { fromStart: true }); }), 0); else playSaga(items); }, 'play'));
     a.append(actBtn(allW ? 'Tout marquer non vu' : 'Tout marquer comme vu', 'ghost', async function () { await post('/api/watched', { ks: items.map(function (i) { return i.k; }), w: !allW }); await refreshState(); route(); }, 'check'));
     var key = 'sg|' + id, fav = actBtn(inList('fav', key) ? '✓ Ma liste' : '+ Ma liste', 'ghost', async function () { await toggleFav(m); fav.textContent = inList('fav', key) ? '✓ Ma liste' : '+ Ma liste'; }); a.append(fav);
     var mb = musicBtn(); mb.dataset.id = items[0].id; a.append(mb);
+    if (S.me.admin) a.append(actBtn('Modifier', 'ghost', function () { sagaDlg(m, items, id); }));
   }));
   v.append(el('div', 'sec', '<h2>Les films de la saga</h2>')); var g = el('div', 'grid'); items.forEach(function (i) { g.append(mCard(mMovie(i))); }); v.append(g);
   startTheme(items[0].id);
 };
+
+/* ===== Modifier une saga : nom, affiche, arrière-plan (enregistré automatiquement) ===== */
+function sagaDlg(m, items, id) {
+  var ov0 = (S.sagaOv && S.sagaOv[id]) || {}, st = { title: ov0.title || '', poster: ov0.poster || '', backdrop: ov0.backdrop || '' }, changed = false, mk = 'saga|' + id;
+  var o = openOv('<div class="dh2"><span>Modifier la saga : ' + esc(m.t) + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"></div></div><div class="df"><button class="btn ghost" data-a="reset">Tout remettre en automatique</button><span><button class="btn red" data-a="s">Terminé</button></span></div>');
+  o.noBg = true; var main = $('.dmain', o.dlg), c0 = o.close, closing = false;
+  var persist = async function () { try { await post('/api/edit', { mk: mk, title: st.title, poster: st.poster, backdrop: st.backdrop }); S.sagaOv = await api('/api/saga-ov'); changed = true; toast('Enregistré'); } catch (e) { toast(e.message); } };
+  var cands = function (kind) { var seen = {}, out = []; items.forEach(function (i) { var u = kind === 'poster' ? i.poster : i.bd; if (u && !seen[u]) { seen[u] = 1; out.push({ u: u, t: i.name || i.title }); } }); return out; };
+  var draw = function () {
+    var cur = function (k) { return st[k] || (k === 'poster' ? m.poster : (items[0].col && items[0].col.b) || m.bd) || ''; };
+    var sec = function (k, label, w, h) { return '<h3 style="margin:14px 0 6px">' + label + '</h3><div class="row2"><div style="width:' + w + 'px;height:' + h + 'px;background:#222;border-radius:6px;overflow:hidden">' + (cur(k) ? '<img src="' + esc(cur(k)) + '" style="width:100%;height:100%;object-fit:cover">' : '') + '</div><div style="flex:1"><button class="btn sm" data-up="' + k + '">Téléverser une image…</button> <button class="btn sm ghost" data-no="' + k + '">Automatique</button><input type="file" accept="image/*" style="display:none" data-fi="' + k + '"><div class="row2" style="margin-top:8px"><input data-iu="' + k + '" placeholder="Ou adresse (URL) d’une image"><button class="btn sm" data-u="' + k + '">Utiliser</button></div></div></div><div class="msg" style="margin:8px 0 4px">Ou choisir l’image d’un film de la saga :</div><div class="imgs' + (k === 'backdrop' ? ' bd' : '') + '" data-ig="' + k + '"></div>'; };
+    main.innerHTML = '<label class="fld">Nom de la saga</label><div class="row2"><input id="sn" value="' + esc(st.title || m.t) + '"><button class="btn sm" data-a="sn">Enregistrer le nom</button></div>' + sec('poster', 'Affiche', 110, 165) + sec('backdrop', 'Arrière-plan', 220, 124);
+    $('[data-a=sn]', main).onclick = async function () { var t = $('#sn', main).value.trim(); st.title = t === m.t && !ov0.title ? '' : t; await persist(); };
+    ['poster', 'backdrop'].forEach(function (k) {
+      var g = $('[data-ig=' + k + ']', main); cands(k).forEach(function (x) { var dd = el('div', 'im' + (st[k] === x.u ? ' sel' : ''), '<img loading="lazy" src="' + esc(x.u) + '" alt="" title="' + esc(x.t) + '">'); dd.tabIndex = 0; dd.onclick = async function () { st[k] = x.u; await persist(); draw(); }; dd.onkeydown = function (e) { if (e.key === 'Enter') dd.click(); }; g.append(dd); });
+      $('[data-up=' + k + ']', main).onclick = function () { $('[data-fi=' + k + ']', main).click(); };
+      $('[data-fi=' + k + ']', main).onchange = async function (e) { var fl = e.target.files[0]; if (!fl) return; try { var r = await post('/api/upload-image', { data: await fileToDataUrl(fl) }); st[k] = r.url; await persist(); draw(); } catch (er) { toast(er.message); } };
+      $('[data-no=' + k + ']', main).onclick = async function () { st[k] = ''; await persist(); draw(); };
+      $('[data-u=' + k + ']', main).onclick = async function () { var u = $('[data-iu=' + k + ']', main).value.trim(); if (/^https?:\/\//.test(u)) { st[k] = u; await persist(); draw(); } else toast('Adresse invalide'); };
+    });
+  };
+  o.close = async function () { if (closing) return; closing = true; c0(); if (changed) { try { await refreshLib(); } catch (e) {} route(); } };
+  $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
+  $('[data-a=reset]', o.dlg).onclick = async function () { try { await post('/api/edit', { mk: mk, reset: true }); S.sagaOv = await api('/api/saga-ov'); st = { title: '', poster: '', backdrop: '' }; changed = true; toast('Remis en automatique'); draw(); } catch (e) { toast(e.message); } };
+  draw();
+}
 
 /* ===== Modifier une fiche (comme Plex) ===== */
 function tagInput(vals, listId) {

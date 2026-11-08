@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.0', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -803,6 +803,7 @@ SRV = http.createServer(async (req, res) => {
         return J(req, res, (j[kind] || []).sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0)).slice(0, 36).map(x => ({ thumb: px(IMG + 'w342' + x.file_path), full: IMG + (kind === 'posters' ? 'w500' : 'w1280') + x.file_path, lang: x.iso_639_1 || '' })));
       } catch { return J(req, res, []); }
     }
+    if (p === '/api/saga-ov') { const out = {}; for (const k of Object.keys(OV)) if (k.startsWith('saga|')) out[k.slice(5)] = OV[k]; return J(req, res, out); }
     if (p === '/api/edit' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req)), mk = String(b.mk || ''); if (!mk) return J(req, res, { error: 'mk manquant' }, 400);
       if (b.reset) delete OV[mk];
