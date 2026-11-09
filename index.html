@@ -1141,7 +1141,7 @@ function seekTo(t) { var d = totalDur(); t = Math.max(0, d ? Math.min(d - 1, t) 
 function toggleFull() { var r = PL.root; try { if (document.fullscreenElement) document.exitFullscreen(); else if (r.requestFullscreen) r.requestFullscreen(); } catch (e) {} }
 function showCtl() {
   if (!PL.open) return; PL.root.classList.remove('hide'); clearTimeout(PL.ctlT);
-  PL.ctlT = setTimeout(function () { if (PL.open && !PL.v.paused && !PL.menu && !PL.drawer && !PL.cf) PL.root.classList.add('hide'); }, 3800);
+  PL.ctlT = setTimeout(function () { if (PL.open && !PL.v.paused && !PL.menu && !PL.drawer) { PL.root.classList.add('hide'); if (PL.cf) { PL.cf = false; var ae = document.activeElement; if (ae && ae.blur && PL.root.contains(ae)) ae.blur(); } } }, 4000);
 }
 function stepQ(d) {
   var n = PL.i + d, len = PL.q.length;
@@ -1315,6 +1315,18 @@ async function showChInfo(d) {
   if (d.sid) { try { var e = await api('/api/epg?stream_id=' + d.sid); if (PL.d !== d) return; var now = Date.now() / 1000, cur = e.filter(function (x) { return x.s <= now && x.e > now; })[0] || e[0], nxt = e[e.indexOf(cur) + 1]; if (cur) $('p', b).innerHTML = '<b>' + esc(cur.t) + '</b> · ' + new Date(cur.s * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' – ' + new Date(cur.e * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (cur.d ? '<br>' + esc(cur.d.slice(0, 160)) : '') + (nxt ? '<br><span style="color:#888">Ensuite : ' + esc(nxt.t) + '</span>' : '') + '<div class="pb"><i style="width:' + Math.max(0, Math.min(100, 100 * (now - cur.s) / (cur.e - cur.s))) + '%"></i></div>'; else $('p', b).textContent = 'Programme non disponible'; } catch (x) { $('p', b).textContent = ''; } } else $('p', b).textContent = d.sub || 'En direct';
 }
 async function toggleChFav() { var d = PL.d, on = S.st.favCh.indexOf(d.id) < 0; try { var r = await post('/api/favch', { id: d.id, on: on }); S.st.favCh = r.favCh; PL.A('fav').classList.toggle('on', on); toast(on ? 'Chaîne ajoutée aux favoris ★' : 'Chaîne retirée des favoris'); } catch (e) {} }
+function chapList() {
+  var inf = PL.info && PL.info.info, ch = inf && inf.chapters && inf.chapters.length > 1 ? inf.chapters.slice() : null, d = totalDur();
+  if (!ch && d > 900) { ch = []; var step = d > 5400 ? 600 : 300; for (var t = 0, n = 1; t < d - 60; t += step, n++) ch.push({ t: t, title: '' }); }
+  return ch || [];
+}
+function openChapters() {
+  var ch = chapList(); if (!ch.length) { showCtl(); return; } closeMenu(); closeDrawer(); PL.cf = false;
+  var dr = el('div', 'chdrawer', '<h4>Chapitres · ' + ch.length + '</h4>'), pos = curPos(), ci = 0;
+  ch.forEach(function (c, i) { if (c.t <= pos + 1) ci = i; });
+  ch.forEach(function (c, i) { var a = el('a', i === ci ? 'cur' : '', '<span class="n">' + (i + 1) + '</span><span>' + esc(c.title || ('Chapitre ' + (i + 1))) + '</span><span style="margin-left:auto;color:var(--mu)">' + fmtT(c.t) + '</span>'); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeDrawer(); seekTo(c.t); showCtl(); }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; dr.append(a); });
+  PL.root.append(dr); PL.drawer = dr; var cur = $('a.cur', dr); if (cur) { cur.focus(); cur.scrollIntoView({ block: 'center' }); } showCtl();
+}
 function closeDrawer() { if (PL.drawer) { PL.drawer.remove(); PL.drawer = null; } }
 function openDrawer() {
   if (!PL.live) return; closeMenu(); closeDrawer(); var dr = el('div', 'chdrawer', '<h4>Chaînes · ' + PL.q.length + '</h4>'), lo = Math.max(0, PL.i - 40), hi = Math.min(PL.q.length, PL.i + 160);
@@ -1341,6 +1353,7 @@ function plKey(e) {
   if (k === 'MediaStop' || kc === 413) { closePlayer(); return; } if (k === 'MediaTrackNext' || k === 'ChannelUp' || kc === 427 || k === 'PageUp') { e.preventDefault(); stepQ(PL.live ? 1 : 1); showCtl(); return; } if (k === 'MediaTrackPrevious' || k === 'ChannelDown' || kc === 428 || k === 'PageDown') { e.preventDefault(); stepQ(-1); showCtl(); return; }
   if (k === 'MediaFastForward' || kc === 417) { skip(30); showCtl(); return; } if (k === 'MediaRewind' || kc === 412) { skip(-10); showCtl(); return; }
   var onCtl = !!(tgt && tgt.closest && tgt.closest('.bot,.top')) && (tgt.tagName === 'BUTTON');
+  if (PL.cf && onCtl && k === 'ArrowDown' && !PL.live && tgt.closest('.ctl')) { e.preventDefault(); e.stopPropagation(); openChapters(); return; }
   if (PL.cf && onCtl && dir) { e.preventDefault(); e.stopPropagation(); showCtl(); moveFocus(dir[0], dir[1], PL.root); return; }
   if (k === 'Enter' && onCtl) { return; }
   if (k === 'Enter' || k === ' ') { if (tgt && tgt.tagName === 'INPUT') return; e.preventDefault(); if (PL.live) openDrawer(); else { togglePlay(); showCtl(); } return; }
