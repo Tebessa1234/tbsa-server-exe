@@ -663,7 +663,7 @@ ROUTES.home = async function (v) {
   };
   section('Films', films, 'movie'); section('Séries', series, 'show');
   if (S.cfg.iptv.xtream || S.cfg.iptv.m3u) {
-    var fv = S.st.favCh.length; var b = el('div', 'sec', '<h2>TV en direct</h2><p class="msg">' + (fv ? fv + ' chaîne' + (fv > 1 ? 's' : '') + ' en favoris. ' : '') + 'Changez de chaîne depuis le lecteur avec les touches Haut / Bas de la télécommande.</p><button class="btn red" id="gl">Ouvrir la TV en direct</button>'); v.append(b); $('#gl', b).onclick = function () { go(S.cfg.iptv.xtream ? '#/live' : '#/m3u'); };
+    var fv = S.st.favCh.length; var b = el('div', 'sec', '<h2>TV en direct</h2><p class="msg">' + (fv ? fv + ' chaîne' + (fv > 1 ? 's' : '') + ' en favoris. ' : '') + 'Changez de chaîne depuis le lecteur avec les touches Haut / Bas. Pour un favori : maintenez OK sur une chaîne (ou touche Menu ≡).</p><button class="btn red" id="gl">Ouvrir la TV en direct</button>'); v.append(b); $('#gl', b).onclick = function () { go(S.cfg.iptv.xtream ? '#/live' : '#/m3u'); };
   }
 };
 
@@ -743,7 +743,7 @@ function tvFocus() {
   if (!isTV() || $('.ov') || $('.pl') || typingEl(document.activeElement)) return;
   var list = focusables($('#view')), f = null, m = S.focusMemo;
   if (m && m.h === location.hash) f = list.filter(function (x) { return x.dataset && x.dataset.fk === m.k; })[0];   // retour au dernier élément sélectionné (ex. l'épisode qu'on vient de regarder)
-  if (!f) f = list[0];
+  if (!f) { var pb = $('#view .acts .btn.red'); f = pb && list.indexOf(pb) >= 0 ? pb : list[0]; }   // fiche film / série : le curseur arrive directement sur « Lecture »
   if (f) { S.autoEl = f; f.focus({ preventScroll: true }); if (S.restore) { try { f.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} if (S.restore.y != null && !inView(f)) f.scrollIntoView({ block: 'center', inline: 'nearest' }); } else if (m && f.dataset && f.dataset.fk === m.k && m.h === location.hash) f.scrollIntoView({ block: 'center', inline: 'nearest' }); }
 }
 function inView(n) { var r = n.getBoundingClientRect(); return r.bottom > 80 && r.top < innerHeight - 20; }
@@ -1201,7 +1201,7 @@ function play(queue, index, opts) {
   startItem(); showCtl();
 }
 var totalDur = function () { return PL.dur || (isFinite(PL.v.duration) ? PL.v.duration : 0); };
-var curPos = function () { return (PL.mode === 'transcode' ? PL.off : 0) + (PL.v.currentTime || 0); };
+var curPos = function () { return PL.pend != null ? PL.pend : (PL.mode === 'transcode' ? PL.off : 0) + (PL.v.currentTime || 0); };
 function tick() {
   if (!PL.open || PL.live) return; var d = totalDur(), p = curPos();
   if (!PL.drag) { PL.R('seek').value = d ? Math.round(1000 * p / d) : 0; PL.R('pt').textContent = fmtT(p); } PL.R('pd').textContent = d ? fmtT(d) : '--:--';
@@ -1211,7 +1211,16 @@ function tick() {
 }
 function togglePlay() { var v = PL.v; if (v.paused) v.play().catch(function () {}); else v.pause(); }
 function skip(s) { if (PL.live) return; seekTo(curPos() + s); }
-function seekTo(t) { var d = totalDur(); t = Math.max(0, d ? Math.min(d - 1, t) : t); if (PL.mode === 'transcode') begin(t); else PL.v.currentTime = t; tick(); }
+function seekTo(t) { var d = totalDur(); t = Math.max(0, d ? Math.min(d - 1, t) : t); if (PL.mode === 'transcode') { if (PL.pend == null) PL.sdir = t > curPos() ? 1 : -1; else PL.sdir = t > PL.pend ? 1 : -1; PL.pend = t; clearTimeout(PL.pendT); PL.pendT = setTimeout(function () { var x = PL.pend; PL.pend = null; if (PL.open) begin(x); }, 350); } else { var vv = PL.v; vv.currentTime = t; directCheck(vv, t); } tick(); }   /* sauts rapides regroupés : une seule relance de la conversion */
+function directCheck(vv, t) {   // lecture directe : si le fichier ne sait pas « sauter » (le film repart du début), on bascule sur la conversion à la bonne minute
+  if (t < 8) return; setTimeout(function () {
+    if (!PL.open || PL.v !== vv || PL.mode !== 'direct' || PL.live || PL.seekFix) return;
+    if (Math.abs((vv.currentTime || 0) - t) > 6) {
+      var d = PL.d, canConv = d.kind === 'local' ? (PL.info && PL.info.ffmpeg) : (d.conv && S.cfg.ffmpeg); if (!canConv) return;
+      PL.seekFix = true; var vi = PL.info && PL.info.info && PL.info.info.video; PL.mode = 'transcode'; PL.qsel = (d.kind === 'local' && vi && vi.codec === 'h264') ? 'remux' : (prefs().quality && prefs().quality !== 'orig' ? prefs().quality : 'auto'); PL.off = 0; begin(t);
+    }
+  }, 2800);
+}
 function toggleFull() { var r = PL.root; try { if (document.fullscreenElement) document.exitFullscreen(); else if (r.requestFullscreen) r.requestFullscreen(); } catch (e) {} }
 function showCtl() {
   if (!PL.open) return; PL.root.classList.remove('hide'); clearTimeout(PL.ctlT);
@@ -1252,12 +1261,12 @@ async function startItem() {
   begin(st); heartbeat('playing');
 }
 function begin(t) {
-  var v = PL.v, d = PL.d; t = Math.max(0, t || 0); PL.off = 0; PL.err = false;
+  var v = PL.v, d = PL.d; t = Math.max(0, t || 0); PL.pend = null; clearTimeout(PL.pendT); PL.off = 0; PL.err = false;
   var errBox = $('.mid', PL.root); errBox.innerHTML = '<div class="spin"></div>';
   if (PL.mode === 'direct') { v.src = d.kind === 'local' ? '/stream/' + d.id : d.src; if (t > 1) v.addEventListener('loadedmetadata', function f() { v.removeEventListener('loadedmetadata', f); try { v.currentTime = t; } catch (e) {} }); }
   else {
     var bt = PL.bt = (PL.bt || 0) + 1, go = function (tt) { if (bt !== PL.bt || !PL.open) return; PL.off = tt; v.src = (d.kind === 'local' ? '/transcode/' + d.id : d.conv) + '?t=' + (+tt).toFixed(3) + '&q=' + (PL.qsel === 'orig' ? 'auto' : PL.qsel) + '&a=' + PL.audio + '&d=' + (prefs().adelay || 0); v.playbackRate = PL.rate || 1; v.play().catch(function () {}); applySub(); };
-    if (PL.qsel === 'remux' && d.kind === 'local' && t > 0.5) { api('/api/kf/' + d.id + '?t=' + t).then(function (r) { go(r && r.t != null ? r.t : t); }).catch(function () { go(t); }); } else go(t);
+    if (PL.qsel === 'remux' && d.kind === 'local' && t > 0.5) { var kfDone = false, kfGo = function (x) { if (kfDone) return; kfDone = true; go(x); }; setTimeout(function () { kfGo(t); }, 3000); api('/api/kf/' + d.id + '?t=' + t).then(function (r) { kfGo(r && r.t != null ? (PL.sdir > 0 && r.n != null && r.n - t <= 40 ? r.n : r.t) : t); }).catch(function () { kfGo(t); }); } else go(t);
     return;
   }
   v.playbackRate = PL.rate || 1; v.play().catch(function () {}); applySub();
@@ -1391,7 +1400,7 @@ async function showChInfo(d) {
 async function toggleChFav() { var d = PL.d, on = S.st.favCh.indexOf(d.id) < 0; try { var r = await post('/api/favch', { id: d.id, on: on }); S.st.favCh = r.favCh; PL.A('fav').classList.toggle('on', on); toast(on ? 'Chaîne ajoutée aux favoris ★' : 'Chaîne retirée des favoris'); } catch (e) {} }
 function chapList() {
   var inf = PL.info && PL.info.info, ch = inf && inf.chapters && inf.chapters.length > 1 ? inf.chapters.slice() : null, d = totalDur();
-  if (!ch && d > 900) { ch = []; var step = d > 5400 ? 600 : 300; for (var t = 0, n = 1; t < d - 60; t += step, n++) ch.push({ t: t, title: '' }); }
+  if (!ch && d > 1200) { ch = []; var step = 900; for (var t = 0, n = 1; t < d - 60; t += step, n++) ch.push({ t: t, title: '' }); }
   return ch || [];
 }
 function openChapters() {
@@ -1431,7 +1440,7 @@ function plKey(e) {
   if (PL.cf && onCtl && dir) { e.preventDefault(); e.stopPropagation(); showCtl(); moveFocus(dir[0], dir[1], PL.root); return; }
   if (k === 'Enter' && onCtl) { return; }
   if (k === 'Enter' || k === ' ') { if (tgt && tgt.tagName === 'INPUT') return; e.preventDefault(); if (PL.live) openDrawer(); else { togglePlay(); showCtl(); } return; }
-  if (k === 'ContextMenu' || k === 'Menu' || kc === 82 || kc === 93) { e.preventDefault(); openMenu('all'); return; }
+  if (k === 'ContextMenu' || k === 'Menu' || kc === 82 || kc === 93) { e.preventDefault(); if (PL.live) toggleChFav(); else openMenu('all'); return; }
   if (k === 'f' || k === 'F') { toggleFull(); return; } if (k === 'm' || k === 'M') { PL.v.muted = !PL.v.muted; return; } if (k === 'c' || k === 'C') { openMenu('subs'); return; }
   if (dir) {
     e.preventDefault(); e.stopPropagation(); showCtl();
@@ -1448,8 +1457,17 @@ function descLive(c) { return { kind: 'live', k: 'lv|' + c.id, id: c.id, title: 
 function chanCard(c, list, idx) {
   var fav = S.st.favCh.indexOf(c.id) >= 0, cd = el('div', 'card chcard'); cd.tabIndex = 0;
   cd.innerHTML = '<div class="pc"><span>' + esc(c.name) + '</span>' + (c.logo ? '<img loading="lazy" src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : '') + (c.num ? '<div class="num">' + esc(c.num) + '</div>' : '') + '<button class="star' + (fav ? ' on' : '') + '" tabindex="-1" title="Favori">★</button></div><div class="cap">' + esc(c.name) + '</div>';
-  $('.star', cd).onclick = async function (e) { e.stopPropagation(); var on = S.st.favCh.indexOf(c.id) < 0; var r = await post('/api/favch', { id: c.id, on: on }); S.st.favCh = r.favCh; e.target.classList.toggle('on', on); };
-  var f = function () { if (list) play(list.map(descLive), idx, { live: true }); else play([descLive(c)], 0, { live: true }); }; cd.onclick = f; cd.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); f(); } }; return cd;
+  var tgl = async function () { var on = S.st.favCh.indexOf(c.id) < 0; try { var r = await post('/api/favch', { id: c.id, on: on }); S.st.favCh = r.favCh; $('.star', cd).classList.toggle('on', on); toast(on ? '★ ' + c.name + ' ajoutée aux favoris' : c.name + ' retirée des favoris'); } catch (e) {} };
+  $('.star', cd).onclick = function (e) { e.stopPropagation(); tgl(); };
+  var f = function () { if (list) play(list.map(descLive), idx, { live: true }); else play([descLive(c)], 0, { live: true }); }; cd.onclick = f;
+  var t0 = 0, done = false;   // télécommande : OK = lire, OK maintenu (ou touche Menu) = favori
+  cd.onkeydown = function (e) {
+    if (e.key === 'ContextMenu' || e.key === 'Menu' || e.keyCode === 82 || e.keyCode === 93) { e.preventDefault(); tgl(); return; }
+    if (e.key !== 'Enter') return; e.preventDefault();
+    if (!e.repeat) { t0 = Date.now(); done = false; } else if (!done && Date.now() - t0 > 650) { done = true; tgl(); }
+  };
+  cd.onkeyup = function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!done && t0) f(); t0 = 0; } };
+  return cd;
 }
 function pillsBar(items, cur, fn) {
   var b = el('div', 'pills'); items.forEach(function (it) { var c = el('button', 'chip' + (cur === it[0] ? ' on' : ''), esc(it[1])); c.onclick = function () { fn(it[0]); }; b.append(c); }); return b;

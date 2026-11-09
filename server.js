@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.8.2', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.8.6', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -486,7 +486,8 @@ function videoArgs(q) {
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
-  if (ACTIVE.size >= (cfg.transcoder.maxSessions || 3)) { res.writeHead(503); return res.end('Trop de conversions simultanées'); }
+  for (let w = 0; w < 15 && ACTIVE.size >= (cfg.transcoder.maxSessions || 3); w++) await new Promise(r => setTimeout(r, 100));   // un saut rapide : l'ancienne conversion se termine
+  if (ACTIVE.size >= (cfg.transcoder.maxSessions || 3)) { const old = ACTIVE.values().next().value; try { old.kill('SIGKILL'); } catch {} ACTIVE.delete(old); }   // sinon on arrête la plus ancienne plutôt que de bloquer le lecteur
   const t = Math.max(0, +q.get('t') || 0), a = Math.max(0, +q.get('a') || 0), qual = q.get('q') || 'auto', Q = QUAL[qual] || QUAL.auto;
   // « remux » : si la vidéo est du H.264 8 bits on la COPIE telle quelle (aucune perte, très léger) et on ne convertit que le son
   let copyV = false;
@@ -701,9 +702,9 @@ SRV = http.createServer(async (req, res) => {
     if (p.startsWith('/api/kf/')) {   // image clé juste avant t : en copiant la vidéo, le son et l'image démarrent alors exactement ensemble
       const i = itemFor(me, +p.slice(8)), t = Math.max(0, +q.get('t') || 0); if (!i || !FFPROBE || /^https?:/.test(i.file)) return J(req, res, { t });
       try {
-        const out = await new Promise(r => execFile(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', '-read_intervals', Math.max(0, t - 40) + '%' + (t + 0.05), i.file], { timeout: 15000, maxBuffer: 4e6 }, (e, so) => r(String(so || ''))));
-        let k = null; for (const ln of out.split('\n')) { const [pt, fl] = ln.split(','); const x = parseFloat(pt); if (/K/.test(fl || '') && x <= t + 0.001 && (k === null || x > k)) k = x; }
-        return J(req, res, { t: k === null ? t : Math.max(0, +k.toFixed(3)) });
+        const out = await new Promise(r => execFile(FFPROBE, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,flags', '-of', 'csv=p=0', '-read_intervals', Math.max(0, t - 40) + '%' + (t + 40), i.file], { timeout: 15000, maxBuffer: 4e6 }, (e, so) => r(String(so || ''))));
+        let k = null, nx = null; for (const ln of out.split('\n')) { const [pt, fl] = ln.split(','); const x = parseFloat(pt); if (!/K/.test(fl || '') || isNaN(x)) continue; if (x <= t + 0.001) { if (k === null || x > k) k = x; } else if (nx === null || x < nx) nx = x; }
+        return J(req, res, { t: k === null ? t : Math.max(0, +k.toFixed(3)), n: nx === null ? null : +nx.toFixed(3) });   // t = image clé avant, n = image clé après
       } catch { return J(req, res, { t }); }
     }
     if (p.startsWith('/api/info/')) {
