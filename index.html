@@ -193,7 +193,7 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 .chdrawer{position:absolute;left:0;top:0;bottom:0;width:calc(420 * var(--u));max-width:88vw;width:min(calc(420 * var(--u)),88vw);background:rgba(10,10,12,.96);border-right:calc(1 * var(--u)) solid #333;z-index:7;overflow:auto;padding:calc(14 * var(--u)) 0}
 .chdrawer h4{margin:calc(6 * var(--u)) calc(18 * var(--u)) calc(12 * var(--u));color:var(--mu)}
 .chdrawer a{display:flex;align-items:center;gap:calc(12 * var(--u));padding:calc(10 * var(--u)) calc(18 * var(--u));cursor:pointer}.chdrawer a:hover,.chdrawer a:focus-visible{background:#26262c}.chdrawer a.cur{border-left:calc(4 * var(--u)) solid var(--red);background:#1e1e23}
-.chdrawer img{width:calc(46 * var(--u));height:calc(34 * var(--u));object-fit:contain;background:#17171b;border-radius:calc(4 * var(--u))}.chdrawer .n{width:calc(34 * var(--u));color:var(--mu);font-weight:800;font-size:calc(13 * var(--u))}
+.chdrawer img.cth{width:calc(150 * var(--u));height:calc(84 * var(--u));object-fit:cover}.chdrawer img{width:calc(46 * var(--u));height:calc(34 * var(--u));object-fit:contain;background:#17171b;border-radius:calc(4 * var(--u))}.chdrawer .n{width:calc(34 * var(--u));color:var(--mu);font-weight:800;font-size:calc(13 * var(--u))}
 .nextbox{position:absolute;right:3vw;bottom:calc(150 * var(--u));background:rgba(20,20,24,.96);border:calc(1 * var(--u)) solid #444;border-radius:calc(10 * var(--u));padding:calc(16 * var(--u)) calc(18 * var(--u));z-index:8;min-width:calc(300 * var(--u))}
 .numin{position:absolute;top:calc(70 * var(--u));left:3vw;font-size:calc(56 * var(--u));font-weight:900;color:#fff;text-shadow:0 calc(2 * var(--u)) calc(12 * var(--u)) #000;z-index:8}
 /* Mode télé */
@@ -1322,9 +1322,9 @@ function chapList() {
 }
 function openChapters() {
   var ch = chapList(); if (!ch.length) { showCtl(); return; } closeMenu(); closeDrawer(); PL.cf = false;
-  var dr = el('div', 'chdrawer', '<h4>Chapitres · ' + ch.length + '</h4>'), pos = curPos(), ci = 0;
+  var dr = el('div', 'chdrawer', '<h4>Chapitres · ' + ch.length + '</h4>'); dr.style.width = 'min(calc(560 * var(--u)),92vw)'; var pos = curPos(), ci = 0;
   ch.forEach(function (c, i) { if (c.t <= pos + 1) ci = i; });
-  ch.forEach(function (c, i) { var a = el('a', i === ci ? 'cur' : '', '<span class="n">' + (i + 1) + '</span><span>' + esc(c.title || ('Chapitre ' + (i + 1))) + '</span><span style="margin-left:auto;color:var(--mu)">' + fmtT(c.t) + '</span>'); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeDrawer(); seekTo(c.t); showCtl(); }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; dr.append(a); });
+  ch.forEach(function (c, i) { var a = el('a', i === ci ? 'cur' : '', '<span class="n">' + (i + 1) + '</span>' + (PL.d && PL.d.kind === 'local' ? '<img class="cth" loading="lazy" src="/api/chthumb/' + PL.d.id + '?t=' + Math.round(c.t) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '') + '<span>' + esc(c.title || ('Chapitre ' + (i + 1))) + '</span><span style="margin-left:auto;color:var(--mu)">' + fmtT(c.t) + '</span>'); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeDrawer(); seekTo(c.t); showCtl(); }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; dr.append(a); });
   PL.root.append(dr); PL.drawer = dr; var cur = $('a.cur', dr); if (cur) { cur.focus(); cur.scrollIntoView({ block: 'center' }); } showCtl();
 }
 function closeDrawer() { if (PL.drawer) { PL.drawer.remove(); PL.drawer = null; } }

@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.5', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.5.6', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -377,6 +377,7 @@ function toVtt(txt, off) {
   return out.join('\n');
 }
 const decodeText = buf => { const u = buf.toString('utf8'); return u.includes('\uFFFD') ? buf.toString('latin1') : u; };
+const CHQ = { n: 0 };
 function runFF(args, ms) {
   return new Promise(res => { if (!FFMPEG) return res(null); execFile(FFMPEG, args, { timeout: ms || 120000, maxBuffer: 64e6, encoding: 'buffer' }, (e, out) => res(e ? null : out)); });
 }
@@ -682,6 +683,21 @@ SRV = http.createServer(async (req, res) => {
     if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const lt = localTrailer(i); if (lt) return J(req, res, { local: true }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
     if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && localTrailer(i); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
     if (p.startsWith('/api/item/')) { const i = itemFor(me, +p.slice(10)); return i ? J(req, res, itemFull(i, S)) : J(req, res, { error: 'introuvable' }, 404); }
+    if (p.startsWith('/api/chthumb/')) {   // vignette d'un chapitre (image extraite du film, mise en cache)
+      const i = itemFor(me, +p.slice(13)), t = Math.max(0, +q.get('t') || 0);
+      if (!i || !FFMPEG || /^https?:/.test(i.file)) { res.writeHead(404); return res.end(); }
+      try {
+        let mt = 0; try { mt = fs.statSync(i.file).mtimeMs; } catch {}
+        const f = path.join(IMGC, 'ch_' + crypto.createHash('md5').update(i.file + '|' + mt + '|' + Math.round(t)).digest('hex') + '.jpg');
+        if (!fs.existsSync(f)) {
+          while (CHQ.n >= 2) await new Promise(r => setTimeout(r, 120));
+          CHQ.n++;
+          try { const b = await runFF(['-v', 'error', '-ss', String(Math.max(0, t + 1)), '-i', i.file, '-map', '0:v:0', '-frames:v', '1', '-vf', 'scale=320:-2', '-q:v', '6', '-f', 'image2pipe', '-c:v', 'mjpeg', '-'], 20000); if (b && b.length > 200) { try { fs.mkdirSync(IMGC, { recursive: true }); fs.writeFileSync(f, b); } catch {} } } finally { CHQ.n--; }
+        }
+        if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+        return send(res, 200, 'image/jpeg', fs.readFileSync(f), { 'Cache-Control': 'private, max-age=86400' });
+      } catch { res.writeHead(404); return res.end(); }
+    }
     if (p.startsWith('/api/kf/')) {   // image clé juste avant t : en copiant la vidéo, le son et l'image démarrent alors exactement ensemble
       const i = itemFor(me, +p.slice(8)), t = Math.max(0, +q.get('t') || 0); if (!i || !FFPROBE || /^https?:/.test(i.file)) return J(req, res, { t });
       try {
