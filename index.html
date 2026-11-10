@@ -905,7 +905,7 @@ async function playTrailer(m) {
   o.dlg.classList.add('trailer'); o.dlg.parentNode.style.cssText += ';padding:0;background:#000'; var box = $('.trl', o.dlg), fsEl = o.dlg;
   if (r.local || r.direct) {
     var vd = el('video'), tried = false, gone = false; vd.controls = true; vd.autoplay = true; vd.setAttribute('playsinline', '');
-    var msg = el('div'); msg.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#fff;font-size:1.2em;text-align:center;padding:20px'; box.style.position = 'relative'; box.append(vd, msg);
+    var msg = el('div'); msg.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#fff;font-size:1.2em;text-align:center;padding:20px'; box.append(vd, msg);
     var fallback = async function () {
       if (tried || gone || !r.local) return; tried = true; msg.style.display = 'flex'; msg.textContent = 'Préparation de la bande-annonce… (première lecture seulement)';
       try { await api('/api/trailer-prepare/' + m.id); } catch (e) { msg.textContent = 'Lecture impossible : ' + e.message; return; }
@@ -920,9 +920,60 @@ async function playTrailer(m) {
     setTimeout(function () { try { vd.focus(); } catch (e) {} }, 200); vd.onended = function () { o.close(); };
   }
   else { var fr = el('iframe'); fr.allow = 'autoplay; fullscreen; encrypted-media'; fr.setAttribute('allowfullscreen', ''); fr.referrerPolicy = 'strict-origin-when-cross-origin'; fr.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(r.yt) + '?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0'; box.append(fr); fr.onload = function () { try { fr.focus(); } catch (e) {} }; }
-  try { var rf = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen; if (rf) { var pr = rf.call(fsEl); if (pr && pr.catch) pr.catch(function () {}); } } catch (e) {}
+  try { var rf = (r.local || r.direct) ? null : (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen); if (rf) { var pr = rf.call(fsEl); if (pr && pr.catch) pr.catch(function () {}); } } catch (e) {}
   var c0 = o.close, done = false; o.close = function () { if (done) return; done = true; try { var vv = $('video', box); if (vv && vv._gone) vv._gone(); } catch (e) {} box.innerHTML = ''; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} c0(); };
   $('[data-a=x]', o.dlg).onclick = function () { o.close(); };
+}
+
+function fmtMB(n) { return n > 1e9 ? (n / 1e9).toFixed(2) + ' Go' : (n / 1e6).toFixed(1) + ' Mo'; }
+function pickVideo(itemId) {
+  return new Promise(function (resolve) {
+    var o = openOv('<div class="dh2"><span>Choisir une vidéo sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div style="padding:6px 16px" class="msg cur"></div><div class="list" style="flex:1;overflow:auto;padding:4px 16px 12px"></div>');
+    o.noBg = true; var list = $('.list', o.dlg), cur = $('.cur', o.dlg), done = false, close0 = o.close, fin = function (v) { if (done) return; done = true; close0(); resolve(v); }; o.close = function () { fin(null); }; $('[data-a=x]', o.dlg).onclick = function () { fin(null); };
+    var row = function (t, fn, cls) { var a = el('div', 'epr', esc(t)); a.tabIndex = 0; a.style.cssText = 'padding:10px 14px;margin-bottom:6px' + (cls ? ';border-left:4px solid #e50914' : ''); a.onclick = fn; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; list.append(a); return a; };
+    async function nav(p) {
+      list.innerHTML = '<div class="spin"></div>'; var r; try { r = await api('/api/browse?files=1&path=' + encodeURIComponent(p || '') + (!p && itemId != null ? '&item=' + itemId : '')); } catch (e) { list.innerHTML = '<p class="msg">' + esc(e.message) + '</p>'; return; }
+      cur.textContent = r.path || 'Ordinateur : choisissez un disque'; list.innerHTML = '';
+      if (r.parent !== null) row('‹ Dossier parent', function () { nav(r.parent); });
+      (r.files || []).forEach(function (x) { row('🎞 ' + x.name, function () { fin(x.path); }, 1); });
+      r.dirs.forEach(function (x) { row('📁 ' + x.name, function () { nav(x.path); }); });
+      if (r.places && r.places.length) { list.append(el('h3', '', 'Raccourcis')); r.places.forEach(function (x) { row(x.name, function () { nav(x.path); }); }); }
+      var f = $('.epr', list); if (f) try { f.focus(); } catch (e) {}
+    }
+    nav('');
+  });
+}
+function dlDlg() {
+  var o = openOv('<div class="dh2"><span>Téléchargements sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg" data-r="dir"></p><div data-r="jobs"></div></div></div><div class="df"><button class="btn ghost" data-a="clr">Effacer la liste</button><span></span><button class="btn red" data-a="s">Fermer</button></div>');
+  var jobs = $('[data-r=jobs]', o.dlg), dir = $('[data-r=dir]', o.dlg), alive = true, c0 = o.close; o.close = function () { alive = false; c0(); };
+  $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
+  $('[data-a=clr]', o.dlg).onclick = async function () { await post('/api/dl-clear', {}); tick(); };
+  async function tick() {
+    if (!alive) return; var r; try { r = await api('/api/dl-list'); } catch (e) { return; }
+    dir.innerHTML = 'Dossier de destination sur le PC : <b>' + esc(r.dir) + '</b>'; var ST = { queue: 'En attente', run: 'En cours', done: 'Terminé ✓', error: 'Erreur', cancel: 'Annulé' };
+    jobs.innerHTML = r.jobs.length ? '' : '<p class="msg">Aucun téléchargement.</p>';
+    r.jobs.forEach(function (j) {
+      var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + esc(j.title) + '</h3><div class="msg" style="font-size:13px">' + ST[j.state] + (j.state === 'run' ? ' · ' + (j.total ? j.pct + ' % · ' + fmtMB(j.got) + ' / ' + fmtMB(j.total) : j.kind === 'bande-annonce' ? j.pct + ' %' : fmtMB(j.got)) + (j.speed ? ' · ' + (j.speed / 1e6).toFixed(1) + ' Mo/s' : '') : '') + (j.err ? ' : ' + esc(j.err) : '') + '</div>' + (j.state === 'run' ? '<div class="prog" style="position:static;margin-top:6px"><i style="width:' + j.pct + '%"></i></div>' : '') + '</div>');
+      d.style.cssText = 'padding:10px 14px;margin-bottom:6px'; if (j.state === 'run' || j.state === 'queue') { d.tabIndex = 0; d.onclick = function () { post('/api/dl-cancel', { id: j.id }).then(tick); toast('Annulé'); }; d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } }; d.title = 'Appuyer pour annuler'; }
+      jobs.append(d);
+    });
+    setTimeout(tick, 1500);
+  }
+  tick();
+}
+async function dlStart(body) { try { var r = await post('/api/dl-start', body); toast(r.n + ' téléchargement(s) lancé(s) vers ' + r.dir); dlDlg(); } catch (e) { toast(e.message); } }
+function dlMovieDlg(id, ext, name, year) {
+  var o = openOv('<div class="dh2"><span>Télécharger sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg">Le fichier sera enregistré sur le PC du serveur sous « Films / Nom (Année) / Nom (Année).' + esc(ext) + ' ».</p><label class="fld">Nom du film</label><input id="dn" value="' + esc(name) + '"><label class="fld">Année</label><input id="dy" value="' + esc(year || '') + '" inputmode="numeric"></div></div><div class="df"><button class="btn ghost" data-a="v">Voir les téléchargements</button><span></span><button class="btn red" data-a="go">Télécharger</button></div>');
+  $('[data-a=x]', o.dlg).onclick = function () { o.close(); }; $('[data-a=v]', o.dlg).onclick = function () { o.close(); dlDlg(); };
+  $('[data-a=go]', o.dlg).onclick = function () { var n = $('#dn', o.dlg).value, y = $('#dy', o.dlg).value; o.close(); dlStart({ type: 'movie', sid: id, ext: ext, name: n, year: y }); };
+  setTimeout(function () { try { $('[data-a=go]', o.dlg).focus(); } catch (e) {} }, 100);
+}
+function dlEpisodesDlg(show, eps, label) {
+  var o = openOv('<div class="dh2"><span>Télécharger sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg">' + esc(label) + ' — enregistré sous « Series / Nom / Season XX / Nom - SXXEXX ».</p><label class="fld">Nom de la série</label><input id="dn" value="' + esc(show) + '"><div class="tlist" style="margin-top:10px"></div></div></div><div class="df"><button class="btn ghost" data-a="v">Voir les téléchargements</button><span></span><button class="btn red" data-a="go">Télécharger (' + eps.length + ')</button></div>');
+  var box = $('.tlist', o.dlg); eps.forEach(function (e) { box.append(el('p', 'msg', 'S' + String(e.season).padStart(2, '0') + 'E' + String(e.episode).padStart(2, '0') + (e.title ? ' — ' + esc(e.title) : ''))); });
+  $('[data-a=x]', o.dlg).onclick = function () { o.close(); }; $('[data-a=v]', o.dlg).onclick = function () { o.close(); dlDlg(); };
+  $('[data-a=go]', o.dlg).onclick = function () { var n = $('#dn', o.dlg).value; o.close(); dlStart({ type: 'episodes', show: n, items: eps }); };
+  setTimeout(function () { try { $('[data-a=go]', o.dlg).focus(); } catch (e) {} }, 100);
 }
 function trailerDlg(m) {
   var o = openOv('<div class="dh2"><span>Bande-annonce : ' + esc(m.t || m.name || '') + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"></div></div><div class="df"><button class="btn ghost" data-a="reset">Remettre en automatique</button><span></span><button class="btn red" data-a="s">Terminé</button></div>');
@@ -932,10 +983,12 @@ function trailerDlg(m) {
     try { cur = await api('/api/trailer/' + m.id); } catch (e) { cur = {}; }
     if (list === null) { try { list = await api('/api/trailer-list/' + m.id); } catch (e) { list = []; } }
     var st = cur.none ? 'Désactivée (aucune bande-annonce)' : cur.local ? 'Fichier local du dossier du film' : cur.yt ? (cur.manual ? 'Choisie à la main : ' : 'Automatique : ') + esc(cur.name || cur.yt) : 'Aucune trouvée';
-    main.innerHTML = '<p class="msg">Actuellement : <b>' + st + '</b></p><label class="fld">Coller un lien (YouTube ou adresse directe d’une vidéo .mp4 / .webm)</label><div class="row2"><input id="ty" placeholder="https://www.youtube.com/watch?v=…"><button class="btn sm" data-a="ap">Utiliser ce lien</button></div><label class="fld" style="margin-top:12px">Ou envoyer une vidéo depuis ce PC</label><div class="row2"><button class="btn sm" data-a="pc">Choisir un fichier vidéo…</button><span class="msg" data-r="up" style="margin:0"></span><input type="file" accept="video/*,.mkv,.ts" hidden data-r="fi"></div>' +
+    main.innerHTML = '<p class="msg">Actuellement : <b>' + st + '</b></p><label class="fld">Coller un lien (YouTube ou adresse directe d’une vidéo .mp4 / .webm)</label><div class="row2"><input id="ty" placeholder="https://www.youtube.com/watch?v=…"><button class="btn sm" data-a="ap">Utiliser ce lien</button></div><label class="fld" style="margin-top:12px">Ou choisir une vidéo qui est déjà sur le PC du serveur</label><div class="row2"><button class="btn sm red" data-a="pf">Parcourir les fichiers du PC…</button><button class="btn sm ghost" data-a="dls">Téléchargements</button></div><label class="fld" style="margin-top:12px">Ou envoyer un fichier depuis cet appareil</label><div class="row2"><button class="btn sm ghost" data-a="pc">Choisir un fichier vidéo…</button><span class="msg" data-r="up" style="margin:0"></span><input type="file" accept="video/*,.mkv,.ts" hidden data-r="fi"></div>' +
       '<h3 style="margin:16px 0 6px">Vidéos proposées' + (list.length ? '' : ' (aucune : clé TMDB absente ou rien trouvé)') + '</h3><div class="tlist"></div><div class="acts" style="margin-top:14px"><button class="btn ghost" data-a="no">Aucune bande-annonce pour ce titre</button></div>';
     $('[data-a=ap]', main).onclick = function () { var u = $('#ty', main).value.trim(); if (!u) { toast('Collez un lien YouTube'); return; } send({ url: u }, 'Bande-annonce enregistrée'); };
     $('[data-a=no]', main).onclick = function () { send({ none: true }, 'Bande-annonce désactivée'); };
+    $('[data-a=pf]', main).onclick = async function () { var f = await pickVideo(m.id); if (f) send({ path: f }, 'Bande-annonce choisie'); };
+    $('[data-a=dls]', main).onclick = function () { dlDlg(); };
     var fi = $('[data-r=fi]', main), up = $('[data-r=up]', main); $('[data-a=pc]', main).onclick = function () { fi.click(); };
     fi.onchange = function () {
       var f = fi.files[0]; if (!f) return; var x = new XMLHttpRequest(); x.open('POST', '/api/trailer-upload?id=' + encodeURIComponent(m.id) + '&name=' + encodeURIComponent(f.name));
@@ -943,7 +996,7 @@ function trailerDlg(m) {
       x.onload = function () { if (x.status === 200) { toast('Bande-annonce enregistrée'); draw(); } else { var m2 = ''; try { m2 = JSON.parse(x.responseText).error; } catch (e) {} up.textContent = ''; toast(m2 || 'Envoi impossible'); } };
       x.onerror = function () { up.textContent = ''; toast('Envoi interrompu'); }; up.textContent = 'Envoi… 0 %'; x.send(f);
     };
-    var box = $('.tlist', main); list.forEach(function (x) { var b = el('button', 'btn ghost', esc(x.name || x.key) + ' <small style="opacity:.7">· ' + esc(x.type) + (x.lang ? ' · ' + esc(x.lang) : '') + '</small>'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px'; b.onclick = function () { send({ url: x.key, name: x.name }, 'Bande-annonce enregistrée'); }; box.append(b); });
+    var box = $('.tlist', main); list.forEach(function (x) { var b = el('button', 'btn ghost', esc(x.name || x.key) + ' <small style="opacity:.7">· ' + esc(x.type) + (x.lang ? ' · ' + esc(x.lang) : '') + '</small>'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px'; b.onclick = function () { send({ url: x.key, name: x.name }, 'Bande-annonce enregistrée'); }; var w = el('div'); w.style.cssText = 'display:flex;gap:6px;margin:0 0 6px'; b.style.margin = '0'; b.style.flex = '1'; var dl = el('button', 'btn sm', 'Télécharger sur le PC'); dl.onclick = async function () { try { var r = await post('/api/dl-start', { type: 'trailer', id: m.id, yt: x.key }); toast('Téléchargement lancé vers ' + r.dir); dlDlg(); } catch (e) { toast(e.message); } }; w.append(b, dl); box.append(w); });
   };
   $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
   $('[data-a=reset]', o.dlg).onclick = function () { send({ reset: true }, 'Remise en automatique'); };
@@ -1598,6 +1651,7 @@ ROUTES.xvod = async function (v, p) {
   a.append(actBtn(resume ? 'Reprendre à ' + fmtT(pr.pos) : 'Lecture', 'red', function () { play([d(false)], 0); }, 'play')); if (resume) a.append(actBtn('Depuis le début', '', function () { play([d(true)], 0); }));
   var fav = actBtn(inList('fav', 'xv|' + id) ? '✓ Ma liste' : '+ Ma liste', 'ghost', async function () { var e = { k: 'xv|' + id, t: name, p: i.movie_image, kind: 'xv' }; if (inList('fav', e.k)) await listAct({ action: 'remove', id: 'fav', k: e.k }); else await listAct({ action: 'add', id: 'fav', item: e }); fav.textContent = inList('fav', e.k) ? '✓ Ma liste' : '+ Ma liste'; }); a.append(fav);
   a.append(actBtn(pr && pr.w ? 'Marquer non vu' : 'Marquer comme vu', 'ghost', async function () { await post('/api/watched', { ks: [k], w: !(pr && pr.w) }); await refreshState(); route(); }, 'check'));
+  if (S.me.admin) a.append(actBtn('Télécharger sur le PC', 'ghost', function () { dlMovieDlg(id, ext, name, (i.releasedate || i.releaseDate || '').slice(0, 4)); }));
 };
 ROUTES.xser = async function (v, p) {
   var id = p[0], r = await xt('get_series_info', { series_id: id }), i = r.info || {}, eps = r.episodes || {}, nums = Object.keys(eps).map(Number).sort(function (a, b) { return a - b; }), name = i.name || 'Série';
@@ -1606,12 +1660,14 @@ ROUTES.xser = async function (v, p) {
   var all = []; nums.forEach(function (n) { (eps[n] || []).forEach(function (e) { all.push({ s: n, e: e }); }); });
   var toD = function (x) { var e = x.e, ext = e.container_extension || 'mp4', inf = e.info || {}; return { kind: 'vod', k: 'xe|' + e.id, src: '/xt/series/' + e.id + '.' + ext, conv: '/xtconv/series/' + e.id + '.' + ext, title: name, sub: 'S' + x.s + ' · É' + e.episode_num + ' — ' + (e.title || ''), poster: inf.movie_image || i.cover, dur: +inf.duration_secs || 0 }; };
   var a = $('.acts', h), nx = all.filter(function (x) { return isW('xe|' + x.e.id); }).length, startIdx = Math.min(all.length - 1, nx); if (all.length) a.append(actBtn((nx ? 'Épisode suivant' : 'Lecture'), 'red', function () { play(all.map(toD), startIdx); }, 'play'));
+  var epD = function (x) { var e = x.e; return { sid: e.id, ext: e.container_extension || 'mp4', season: x.s, episode: +e.episode_num || 0, title: e.title || '' }; };
+  if (S.me.admin && all.length) { a.append(actBtn('Télécharger une saison', 'ghost', function () { dlEpisodesDlg(name, all.filter(function (x) { return x.s === cur; }).map(epD), 'Saison ' + cur); })); a.append(actBtn('Télécharger toute la série', 'ghost', function () { dlEpisodesDlg(name, all.map(epD), 'Toute la série'); })); }
   var fav = actBtn(inList('fav', 'xs|' + id) ? '✓ Ma liste' : '+ Ma liste', 'ghost', async function () { var e = { k: 'xs|' + id, t: name, p: i.cover, kind: 'xs' }; if (inList('fav', e.k)) await listAct({ action: 'remove', id: 'fav', k: e.k }); else await listAct({ action: 'add', id: 'fav', item: e }); fav.textContent = inList('fav', e.k) ? '✓ Ma liste' : '+ Ma liste'; }); a.append(fav);
   var sec = el('div', 'sec', '<h2>Épisodes</h2><div class="seasons"></div><div class="eps"></div>'); v.append(sec); var cur = nums[0];
   var show = function (n) {
     cur = n; $$('.chip', $('.seasons', sec)).forEach(function (c) { c.classList.toggle('on', +c.dataset.n === n); }); var box = $('.eps', sec); box.innerHTML = '';
     (eps[n] || []).forEach(function (e) { var idx = all.findIndex(function (x) { return x.e.id === e.id; }), inf = e.info || {}, w = isW('xe|' + e.id), pc = pctOf('xe|' + e.id);
-      var r2 = el('div', 'epr', '<div class="st">' + (inf.movie_image ? '<img loading="lazy" src="' + esc(inf.movie_image) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(e.episode_num) + '</span>' + (pc ? '<div class="prog"><i style="width:' + pc + '%"></i></div>' : '') + '</div><div class="tx"><h3>' + esc(e.episode_num) + '. ' + esc(e.title || '') + (w ? ' <span class="ck">✓</span>' : '') + '</h3><div class="msg" style="font-size:13px">' + esc(inf.duration || '') + '</div><p>' + esc(inf.plot || '') + '</p></div>'); r2.tabIndex = 0; r2.dataset.fk = 'xe' + e.id; r2.onclick = function () { play(all.map(toD), idx); }; r2.onkeydown = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); r2.click(); } }; box.append(r2); }); tvRestoreFocus();
+      var r2 = el('div', 'epr', '<div class="st">' + (inf.movie_image ? '<img loading="lazy" src="' + esc(inf.movie_image) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(e.episode_num) + '</span>' + (pc ? '<div class="prog"><i style="width:' + pc + '%"></i></div>' : '') + '</div><div class="tx"><h3>' + esc(e.episode_num) + '. ' + esc(e.title || '') + (w ? ' <span class="ck">✓</span>' : '') + '</h3><div class="msg" style="font-size:13px">' + esc(inf.duration || '') + '</div><p>' + esc(inf.plot || '') + '</p></div>'); r2.tabIndex = 0; r2.dataset.fk = 'xe' + e.id; r2.onclick = function () { play(all.map(toD), idx); }; r2.onkeydown = function (ev) { if (ev.key === 'Enter' && ev.target === r2) { ev.preventDefault(); r2.click(); } }; if (S.me.admin) { var db = el('button', 'btn sm ghost', '⬇ PC'); db.title = 'Télécharger cet épisode sur le PC'; db.onclick = function (ev) { ev.stopPropagation(); dlEpisodesDlg(name, [epD({ s: n, e: e })], 'Épisode'); }; $('.tx', r2).append(db); } box.append(r2); }); tvRestoreFocus();
   };
   nums.forEach(function (n) { var c = el('button', 'chip', 'Saison ' + n); c.dataset.n = n; c.dataset.fk = 'sea' + n; c.onclick = function () { show(n); }; $('.seasons', sec).append(c); }); if (nums.length) show(cur); else $('.eps', sec).innerHTML = '<div class="emp">Aucun épisode.</div>';
 };

@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.10.1', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -68,6 +68,8 @@ process.on('exit', flush);
 /* ---------- Configuration ---------- */
 let cfg = Object.assign({ serverName: 'TBSA-Serveur', libraries: [], xtream: null, m3u: '', tmdb: '', scanMinutes: 10, sagaMin: 2 }, load('config.json', {}));
 cfg.transcoder = Object.assign({ hw: 'none', preset: 'veryfast', maxSessions: 3 }, cfg.transcoder || {});
+const TMDB_DEFAULT = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI2N2MzN2NlNWZlN2NlMTVhMDlmMzA0ODkyN2M0NzZiOCIsIm5iZiI6MTc0NzE1NDY5MC44MDQsInN1YiI6IjY4MjM3NzAyNzFlMzAyM2ZmMWExNmEwNiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.tkVGYPRUoMNP2Z6gBeJ4MoDJNnuzjJDdI7TMxBrxZ40';   // clé TMDB intégrée (lecture seule) : utilisée tant qu'aucune autre n'est saisie dans Réglages
+if (!cfg.tmdb && !cfg.tmdbOff) cfg.tmdb = TMDB_DEFAULT;
 cfg.libraries = (cfg.libraries || []).map(l => ({ ...l, uid: l.uid || rid(), paths: l.paths || (l.path ? [l.path] : []), language: l.language || 'fr-FR' }));
 const saveCfg = () => save('config.json', cfg);
 saveCfg();
@@ -257,8 +259,8 @@ function localTrailer(it) {
 }
 const TRL = load('trailers.json', {});
 const TRL_DIR = path.join(DATA, 'trailers'), OVT = TRL.__ov || (TRL.__ov = {});
-const ovFile = i => { const o = OVT[mkey(i)]; if (!o || !o.file) return null; const f = path.join(TRL_DIR, path.basename(o.file)); return fs.existsSync(f) ? f : null; };
-const dropOvFile = k => { const o = OVT[k]; if (o && o.file) { try { fs.unlinkSync(path.join(TRL_DIR, path.basename(o.file))); } catch {} } };   // bandes-annonces choisies à la main (clé = fiche)
+const ovFile = i => { const o = OVT[mkey(i)]; if (!o || !o.file) return null; const f = o.abs ? o.file : path.join(TRL_DIR, path.basename(o.file)); return fs.existsSync(f) ? f : null; };
+const dropOvFile = k => { const o = OVT[k]; if (o && o.file && !o.abs) { try { fs.unlinkSync(path.join(TRL_DIR, path.basename(o.file))); } catch {} } };   // bandes-annonces choisies à la main (clé = fiche)
 const ytId = x => { x = String(x || '').trim(); const m = x.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([\w-]{11})/) || x.match(/^([\w-]{11})$/); return m ? m[1] : ''; };
 async function trailerList(i) {
   const m = M(i); if (!m.id || !cfg.tmdb) return [];
@@ -518,6 +520,69 @@ function compatTrailer(src) {
   }).then(r => { COMPAT.delete(out); return r; });
   COMPAT.set(out, p); return p;
 }
+
+/* ---------- Téléchargements vers le PC (films/séries IPTV, bandes-annonces) ---------- */
+const DLJ = [];
+let dlSeq = 0;
+const dlRoot = () => cfg.dlDir || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || os.homedir(), 'Videos', 'TBSA-Telechargements') : path.join(os.homedir(), 'TBSA-Telechargements'));
+const cleanN = x => String(x || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120);
+const pad2 = n => String(Math.max(0, +n || 0)).padStart(2, '0');
+function dlPublic(j) { return { id: j.id, title: j.title, kind: j.kind, state: j.state, got: j.got || 0, total: j.total || 0, pct: j.pct || 0, speed: j.speed || 0, file: j.file, err: j.err || '' }; }
+function dlPump() {
+  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; (j.yt ? dlYt(j) : dlHttp(j)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlPump(); }); }
+}
+function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); DLJ.push(j); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
+function dlHttp(j, url, hops) {
+  url = url || j.url; hops = hops || 0;
+  return new Promise((resolve, reject) => {
+    let u; try { u = new URL(url); } catch { return reject(new Error('Adresse invalide')); }
+    const lib = u.protocol === 'https:' ? https : http;
+    const rq = lib.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 TBSA' } }, r => {
+      if ([301, 302, 303, 307, 308].includes(r.statusCode) && r.headers.location && hops < 6) { r.resume(); return resolve(dlHttp(j, new URL(r.headers.location, url).href, hops + 1)); }
+      if (r.statusCode !== 200) { r.resume(); return reject(new Error('Le serveur a répondu ' + r.statusCode)); }
+      try { fs.mkdirSync(path.dirname(j.file), { recursive: true }); } catch (e) { return reject(new Error('Dossier inaccessible : ' + e.message)); }
+      j.total = +r.headers['content-length'] || 0; j.t0 = Date.now(); const part = j.file + '.part', out = fs.createWriteStream(part); j.req = rq; let last = Date.now(), lastB = 0;
+      r.on('data', c => { j.got += c.length; if (j.total) j.pct = Math.min(99, Math.floor(j.got / j.total * 100)); const n = Date.now(); if (n - last > 1000) { j.speed = (j.got - lastB) / ((n - last) / 1000); last = n; lastB = j.got; } });
+      r.on('error', e => { out.destroy(); try { fs.unlinkSync(part); } catch {} reject(e); });
+      out.on('error', e => { rq.destroy(); try { fs.unlinkSync(part); } catch {} reject(e); });
+      out.on('finish', () => { if (j.state !== 'run') { try { fs.unlinkSync(part); } catch {} return; } try { fs.renameSync(part, j.file); } catch (e) { return reject(e); } j.state = 'done'; j.pct = 100; j.speed = 0; if (j.after) j.after(); dlPump(); resolve(); });
+      r.on('aborted', () => { out.destroy(); try { fs.unlinkSync(part); } catch {} reject(new Error('Connexion interrompue')); });
+      r.pipe(out);
+    });
+    rq.on('error', reject); rq.setTimeout(60000, () => rq.destroy(new Error('Délai dépassé')));
+  });
+}
+/* yt-dlp : cherché à côté du programme / dans les données / dans le PATH ; téléchargé automatiquement au besoin */
+let YTDLP = null;
+const ytName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+function findYtdlp() {
+  if (YTDLP && fs.existsSync(YTDLP)) return YTDLP;
+  for (const c of [path.join(DATA, 'bin', ytName), path.join(path.dirname(process.execPath), ytName), path.join(BASE, ytName), ytName]) { try { if (spawnSync(c, ['--version'], { timeout: 8000 }).status === 0) return (YTDLP = c); } catch {} }
+  return null;
+}
+async function ensureYtdlp(j) {
+  let y = findYtdlp(); if (y) return y;
+  const f = path.join(DATA, 'bin', ytName); j.title2 = 'Installation de yt-dlp…';
+  const tj = { file: f, state: 'run', got: 0, total: 0, pct: 0 };
+  await dlHttp(tj, 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/' + ytName);
+  try { fs.chmodSync(f, 0o755); } catch {}
+  y = findYtdlp(); if (!y) throw new Error('yt-dlp introuvable'); return y;
+}
+async function dlYt(j) {
+  const y = await ensureYtdlp(j); if (j.state !== 'run') return;
+  try { fs.mkdirSync(path.dirname(j.file), { recursive: true }); } catch (e) { throw new Error('Dossier inaccessible : ' + e.message); }
+  const base = j.file.replace(/\.mp4$/i, ''), fmt = FFMPEG ? 'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/b[ext=mp4]/b' : 'b[ext=mp4]/b';
+  const args = ['--newline', '--no-playlist', '--force-overwrites', '--no-part', '-f', fmt, '--merge-output-format', 'mp4', '-o', base + '.%(ext)s'];
+  if (FFMPEG && path.isAbsolute(FFMPEG)) args.push('--ffmpeg-location', path.dirname(FFMPEG));
+  args.push('https://www.youtube.com/watch?v=' + j.yt);
+  await new Promise((resolve, reject) => {
+    const c = spawn(y, args, { stdio: ['ignore', 'pipe', 'pipe'] }); j.proc = c; let err = '';
+    const onL = d => { for (const ln of String(d).split(/\r?\n/)) { const m = ln.match(/\[download\]\s+([\d.]+)%/); if (m) j.pct = Math.min(99, Math.floor(+m[1])); } };
+    c.stdout.on('data', onL); c.stderr.on('data', d => { err += d; if (err.length > 2000) err = err.slice(-2000); });
+    c.on('error', reject);
+    c.on('close', code => { if (j.state !== 'run') return resolve(); if (code !== 0) return reject(new Error((err.split('\n').filter(Boolean).pop() || 'yt-dlp a échoué').slice(0, 200))); const real = [base + '.mp4', base + '.mkv', base + '.webm'].find(x => fs.existsSync(x)); if (real) j.file = real; j.state = 'done'; j.pct = 100; if (j.after) j.after(); dlPump(); resolve(); });
+  });
+}
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -704,7 +769,7 @@ SRV = http.createServer(async (req, res) => {
         if (x && x.host && x.user) { let host = x.host.trim(); if (!/^https?:\/\//.test(host)) host = 'http://' + host; cfg.xtream = { host, user: x.user.trim(), pass: x.pass || (cfg.xtream && cfg.xtream.pass) || '' }; allow(host); } else cfg.xtream = null;
       }
       if ('m3u' in b) { cfg.m3u = String(b.m3u || '').trim(); M3 = { t: 0, ch: [] }; }
-      if (b.tmdb && String(b.tmdb).trim()) cfg.tmdb = String(b.tmdb).trim(); if (b.clearTmdb) cfg.tmdb = '';
+      if (b.tmdb && String(b.tmdb).trim()) { cfg.tmdb = String(b.tmdb).trim(); delete cfg.tmdbOff; } if (b.clearTmdb) { cfg.tmdb = ''; cfg.tmdbOff = true; }
       if (b.serverName) cfg.serverName = String(b.serverName).trim().slice(0, 40) || 'TBSA-Serveur';
       if (b.scanMinutes !== undefined) cfg.scanMinutes = Math.max(0, Math.min(1440, +b.scanMinutes || 0));
       if ('themeMusic' in b) cfg.themeMusic = !!b.themeMusic;
@@ -717,10 +782,36 @@ SRV = http.createServer(async (req, res) => {
     /* --- bibliothèque --- */
     if (p === '/api/library') return J(req, res, index.filter(i => allowedLib(me, cfg.libraries[i.libId])).map(i => itemOut(i, S)));
     if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const ov = OVT[mkey(i)]; if (ov) { if (ov.file) { if (ovFile(i)) return J(req, res, { local: true, manual: true, name: ov.name || '', ready: await trReady(ovFile(i)) || !!(compatPath(ovFile(i)) && fs.existsSync(compatPath(ovFile(i)))) }); } else return J(req, res, ov.none ? { yt: '', none: true, tmdb: !!cfg.tmdb } : ov.direct ? { yt: '', direct: ov.direct, name: ov.name || '', manual: true } : { yt: ov.yt, name: ov.name || '', manual: true, tmdb: !!cfg.tmdb }); } const lt = localTrailer(i); if (lt) return J(req, res, { local: true, ready: await trReady(lt) || !!(compatPath(lt) && fs.existsSync(compatPath(lt))) }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
+
+    if (p === '/api/dl-list') { if (!need()) return; return J(req, res, { dir: dlRoot(), jobs: DLJ.map(dlPublic).reverse() }); }
+    if (p === '/api/dl-start' && POST) {
+      if (!need()) return; const b = JSON.parse(await body(req)), root = dlRoot(), made = [], id = /^[\w.-]{1,40}$/;
+      if (b.type === 'movie' || b.type === 'episodes') {
+        if (!cfg.xtream) return J(req, res, { error: 'Xtream non configuré' }, 400);
+        const mk = (kind, sid, ext) => `${xBase()}/${kind}/${encodeURIComponent(cfg.xtream.user)}/${encodeURIComponent(cfg.xtream.pass)}/${sid}.${ext}`;
+        if (b.type === 'movie') {
+          if (!id.test(String(b.sid)) || !id.test(String(b.ext || 'mp4'))) return J(req, res, { error: 'Film invalide' }, 400);
+          const nm = cleanN(b.name) || 'Film ' + b.sid, yr = /^\d{4}$/.test(String(b.year || '')) ? ' (' + b.year + ')' : '', fn = nm + yr, ext = String(b.ext || 'mp4').toLowerCase();
+          made.push(dlAdd({ kind: 'film', title: fn, url: mk('movie', b.sid, ext), file: path.join(root, 'Films', fn, fn + '.' + ext) }));
+        } else {
+          const show = cleanN(b.show) || 'Série'; const list = Array.isArray(b.items) ? b.items.slice(0, 200) : [];
+          for (const e of list) { if (!id.test(String(e.sid)) || !id.test(String(e.ext || 'mp4'))) continue; const ext = String(e.ext || 'mp4').toLowerCase(), se = +e.season || 1, ep = +e.episode || 0, fn = show + ' - S' + pad2(se) + 'E' + pad2(ep); made.push(dlAdd({ kind: 'épisode', title: fn, url: mk('series', e.sid, ext), file: path.join(root, 'Series', show, 'Season ' + pad2(se), fn + '.' + ext) })); }
+        }
+      } else if (b.type === 'trailer') {
+        const i = itemFor(me, +b.id), y = ytId(b.yt); if (!i || !y) return J(req, res, { error: 'Bande-annonce invalide' }, 400);
+        let dir = path.dirname(i.file), base = path.basename(i.file, path.extname(i.file)), fn;
+        if (i.type === 'shows') { const par = path.dirname(dir); if (par.length > i.root.length && /season|saison|^s\d+|specials?/i.test(path.basename(dir))) dir = par; fn = 'trailer.mp4'; } else fn = base + '-trailer.mp4';
+        const k = mkey(i); made.push(dlAdd({ kind: 'bande-annonce', title: 'Bande-annonce : ' + (i.title || i.name || base), yt: y, file: path.join(dir, fn), after: () => { dropOvFile(k); delete OVT[k]; save('trailers.json', TRL); } }));
+      } else return J(req, res, { error: 'Type inconnu' }, 400);
+      return ok({ n: made.length, dir: root });
+    }
+    if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue')) { const was = j.state; j.state = 'cancel'; try { if (j.req) j.req.destroy(); if (j.proc) j.proc.kill(); } catch {} if (was === 'run') dlPump(); } return ok(); }
+    if (p === '/api/dl-clear' && POST) { if (!need()) return; for (let n = DLJ.length - 1; n >= 0; n--) if (!['run', 'queue'].includes(DLJ[n].state)) DLJ.splice(n, 1); return ok(); }
+    if (p === '/api/dl-config' && POST) { if (!need()) return; const b = JSON.parse(await body(req)), d = normPath(String(b.dir || '')); if (b.dir && !d) return J(req, res, { error: 'Dossier invalide' }, 400); if (d) { try { fs.mkdirSync(d, { recursive: true }); } catch (e) { return J(req, res, { error: 'Dossier inaccessible : ' + e.message }, 400); } cfg.dlDir = d; } else delete cfg.dlDir; save('config.json', cfg); return ok({ dir: dlRoot() }); }
     if (p.startsWith('/api/trailer-list/')) { if (!need()) return; const i = itemFor(me, +p.slice(18)); if (!i) return J(req, res, [], 404); return J(req, res, await trailerList(i)); }
     if (p === '/api/trailer-set' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req)), i = itemFor(me, +b.id); if (!i) return J(req, res, { error: 'Introuvable' }, 404); const k = mkey(i);
-      if (b.reset) { dropOvFile(k); delete OVT[k]; } else if (b.none) { dropOvFile(k); OVT[k] = { none: true }; } else { const u = String(b.url || b.yt || '').trim(), y = ytId(u); if (y) { dropOvFile(k); OVT[k] = { yt: y, name: String(b.name || '').slice(0, 120) }; } else if (/^https?:\/\/\S+$/i.test(u)) { dropOvFile(k); OVT[k] = { direct: u, name: String(b.name || '').slice(0, 120) }; } else return J(req, res, { error: 'Lien non reconnu : collez une adresse YouTube ou l’adresse directe d’une vidéo (.mp4, .webm…)' }, 400); }
+      if (b.path) { const f = path.resolve(normPath(b.path)); if (!VEXT_T.includes(path.extname(f).slice(1).toLowerCase()) || !fs.existsSync(f)) return J(req, res, { error: 'Fichier vidéo introuvable' }, 400); dropOvFile(k); OVT[k] = { file: f, abs: true, name: path.basename(f, path.extname(f)).slice(0, 120) }; } else if (b.reset) { dropOvFile(k); delete OVT[k]; } else if (b.none) { dropOvFile(k); OVT[k] = { none: true }; } else { const u = String(b.url || b.yt || '').trim(), y = ytId(u); if (y) { dropOvFile(k); OVT[k] = { yt: y, name: String(b.name || '').slice(0, 120) }; } else if (/^https?:\/\/\S+$/i.test(u)) { dropOvFile(k); OVT[k] = { direct: u, name: String(b.name || '').slice(0, 120) }; } else return J(req, res, { error: 'Lien non reconnu : collez une adresse YouTube ou l’adresse directe d’une vidéo (.mp4, .webm…)' }, 400); }
       save('trailers.json', TRL); return ok({ ov: OVT[k] || null });
     }
     if (p === '/api/trailer-upload' && POST) {   // vidéo envoyée depuis le PC (écrite directement sur le disque, sans tout charger en mémoire)
@@ -942,7 +1033,7 @@ SRV = http.createServer(async (req, res) => {
 
     /* --- administration --- */
     if (p === '/api/browse') {
-      if (!need()) return; const qq = normPath(q.get('path')), home = os.homedir();
+      if (!need()) return; const itI = q.get('item') ? itemFor(me, +q.get('item')) : null, qq = normPath(q.get('path')) || (itI && !/^https?:/.test(itI.file) ? path.dirname(itI.file) : ''), home = os.homedir();
       const FR = { Videos: 'Vidéos', Movies: 'Films', Downloads: 'Téléchargements', Desktop: 'Bureau', Documents: 'Documents' };
       const places = Object.keys(FR).map(n => ({ name: FR[n], path: path.join(home, n) })).filter(x => fs.existsSync(x.path));
       if (!qq && process.platform === 'win32') {
@@ -953,7 +1044,8 @@ SRV = http.createServer(async (req, res) => {
       let d = qq || '/'; if (process.platform === 'win32' && /^[a-zA-Z]:$/.test(d)) d += '\\';
       try {
         const dirs = fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() && !/^[.$]/.test(e.name)).map(e => ({ name: e.name, path: path.join(d, e.name) })).sort((x, y) => x.name.localeCompare(y.name)), par = path.dirname(d);
-        return J(req, res, { path: d, parent: par !== d ? par : (process.platform === 'win32' ? '' : null), places: qq ? [] : places, dirs });
+        const files = q.get('files') ? fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isFile() && VEXT_T.includes(path.extname(e.name).slice(1).toLowerCase())).map(e => ({ name: e.name, path: path.join(d, e.name) })).sort((x, y) => x.name.localeCompare(y.name)) : [];
+        return J(req, res, { path: d, parent: par !== d ? par : (process.platform === 'win32' ? '' : null), places: qq ? [] : places, dirs, files });
       } catch { return J(req, res, { error: 'Dossier introuvable ou inaccessible' }, 400); }
     }
     if (p === '/api/scan' && POST) { if (!need()) return; setImmediate(scan); return ok(); }
