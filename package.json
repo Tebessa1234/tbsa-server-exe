@@ -1,6 +1,6 @@
 {
   "name": "tbsa-serveur",
-  "version": "3.8.6",
+  "version": "3.9.1",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {

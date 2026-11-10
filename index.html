@@ -177,6 +177,7 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 .pl .top h3{font-size:calc(20 * var(--u));flex:1}.pl .top small{color:#bbb;display:block;font-weight:400;font-size:calc(14 * var(--u))}
 .pl .bot{bottom:0;background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);padding-top:calc(60 * var(--u))}
 .pl.hide .top,.pl.hide .bot{opacity:0;pointer-events:none}.pl.hide{cursor:none}
+.qi{display:flex;gap:calc(8 * var(--u));flex-wrap:wrap;margin:0 0 calc(8 * var(--u));font-size:calc(13 * var(--u))}.qi span{border:1px solid rgba(255,255,255,.35);border-radius:calc(5 * var(--u));padding:calc(2 * var(--u)) calc(9 * var(--u));background:rgba(0,0,0,.45);color:#eee;white-space:nowrap}.qi span.k{background:#e50914;border-color:#e50914;color:#fff;font-weight:700}.qi:empty{display:none}body.tv .qi{font-size:calc(19 * var(--u))}
 .seek{display:flex;align-items:center;gap:calc(12 * var(--u));color:#ddd;font-size:calc(14 * var(--u))}
 .seek input[type=range]{flex:1;accent-color:var(--red);height:calc(22 * var(--u));padding:0;background:none;border:0}
 .ctl{display:flex;align-items:center;gap:calc(6 * var(--u));margin-top:calc(6 * var(--u));flex-wrap:wrap}
@@ -569,7 +570,7 @@ function prefsDlg() {
     '<label class="fld">Volume de la musique</label><input type="range" id="pv" min="0" max="100" value="' + Math.round(p.vol * 100) + '" style="width:100%;accent-color:#e50914">' +
     '<label class="fld"><input type="checkbox" id="pa" ' + (p.autonext ? 'checked' : '') + '> Lire automatiquement l’épisode suivant</label>' +
     '<label class="fld"><input type="checkbox" id="pf" ' + (p.forceAudio ? 'checked' : '') + '> Toujours convertir le son en stéréo (à activer si vous n’entendez rien sur la télé)</label><label class="fld">Sous-titres préférés</label><select id="ps"><option value="off">Aucun</option><option value="fr">Français</option><option value="en">Anglais</option></select>' +
-    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
+    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
   $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality;
   $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); o.close(); toast('Préférences enregistrées'); };
 }
@@ -1170,14 +1171,14 @@ function playPlan(d) {
 function bindVideo(v) {
   var mine = function (f) { return function () { if (!PL.open || v !== PL.v) return; return f.apply(this, arguments); }; };
   v.addEventListener('click', mine(function () { if (!isTV()) togglePlay(); else showCtl(); })); v.addEventListener('dblclick', mine(toggleFull));
-  v.addEventListener('timeupdate', mine(tick)); v.addEventListener('waiting', mine(function () { $('.mid', PL.root).innerHTML = '<div class="spin"></div>'; })); v.addEventListener('playing', mine(function () { $('.mid', PL.root).innerHTML = ''; PL.A('pp').innerHTML = ic('pause'); }));
+  v.addEventListener('timeupdate', mine(tick)); v.addEventListener('loadedmetadata', mine(updateQi)); v.addEventListener('resize', mine(updateQi)); v.addEventListener('playing', mine(updateQi)); v.addEventListener('waiting', mine(function () { $('.mid', PL.root).innerHTML = '<div class="spin"></div>'; })); v.addEventListener('playing', mine(function () { $('.mid', PL.root).innerHTML = ''; PL.A('pp').innerHTML = ic('pause'); }));
   v.addEventListener('pause', mine(function () { PL.A('pp').innerHTML = ic('play'); showCtl(); })); v.addEventListener('ended', mine(onEnded)); v.addEventListener('error', mine(onError));
 }
 function play(queue, index, opts) {
   closePlayer(true); stopTheme(); opts = opts || {};
   var root = el('div', 'pl'), vol = +(localStorage.getItem('tbsa.vol') || 1);
   root.innerHTML = '<video playsinline></video><div class="mid"></div><div class="top"><button class="cb" data-a="close" title="Fermer">' + ic('x') + '</button><h3><span data-r="t"></span><small data-r="s"></small></h3></div><div class="tbadge" style="display:none"></div>' +
-    '<div class="bot"><div class="seek"><span data-r="pt">0:00</span><input type="range" data-r="seek" min="0" max="1000" value="0" tabindex="-1"><span data-r="pd">0:00</span></div><div class="ctl">' +
+    '<div class="bot"><div class="qi" data-r="qi"></div><div class="seek"><span data-r="pt">0:00</span><input type="range" data-r="seek" min="0" max="1000" value="0" tabindex="-1"><span data-r="pd">0:00</span></div><div class="ctl">' +
     '<button class="cb" data-a="prev" title="Précédent">' + ic('prev') + '</button><button class="cb" data-a="b10">−10</button><button class="cb" data-a="pp" title="Lecture / pause">' + ic('pause') + '</button><button class="cb" data-a="f10">+10</button><button class="cb" data-a="next" title="Suivant">' + ic('next') + '</button><button class="cb" data-a="set" title="Audio, sous-titres, qualité">⚙ Réglages</button>' +
     '<button class="cb" data-a="mute" title="Volume">' + ic('vol') + '</button><span class="sp"></span><button class="cb" data-a="fav" style="display:none" title="Favori">' + ic('star') + '</button><button class="cb" data-a="chl" style="display:none">' + ic('list') + ' Chaînes</button>' +
     '<button class="cb" data-a="subs">' + ic('cc') + ' Sous-titres</button><button class="cb" data-a="aud">Audio</button><button class="cb" data-a="qual">⚙ Qualité</button><button class="cb" data-a="full" title="Plein écran">' + ic('full') + '</button></div></div>';
@@ -1196,14 +1197,14 @@ function play(queue, index, opts) {
   wire('fav', toggleChFav); wire('chl', openDrawer);
   var sk = R('seek'); sk.oninput = function () { PL.drag = true; R('pt').textContent = fmtT(sk.value / 1000 * (totalDur() || 0)); };
   sk.onchange = function () { PL.drag = false; var d = totalDur(); if (d) seekTo(sk.value / 1000 * d); };
-  document.addEventListener('keydown', plKey, true); PL.keyFn = plKey;
+  document.addEventListener('keydown', plKey, true); PL.keyFn = plKey; document.addEventListener('keyup', plKeyUp, true);
   PL.hbT = setInterval(function () { heartbeat('playing'); }, 10000);
   startItem(); showCtl();
 }
 var totalDur = function () { return PL.dur || (isFinite(PL.v.duration) ? PL.v.duration : 0); };
 var curPos = function () { return PL.pend != null ? PL.pend : (PL.mode === 'transcode' ? PL.off : 0) + (PL.v.currentTime || 0); };
 function tick() {
-  if (!PL.open || PL.live) return; var d = totalDur(), p = curPos();
+  if (!PL.open || PL.live) return; var d = totalDur(), p = curPos(); if (p > 0.5 && PL.pend == null) PL.lastP = p;
   if (!PL.drag) { PL.R('seek').value = d ? Math.round(1000 * p / d) : 0; PL.R('pt').textContent = fmtT(p); } PL.R('pd').textContent = d ? fmtT(d) : '--:--';
   var rem = d - p;
   if (d >= 30 && rem <= NEXT_AT && rem > 0.4) { if (!PL.nw && !PL.nwOff && PL.q[PL.i + 1] && prefs().autonext) showNextWindow(); }
@@ -1211,7 +1212,7 @@ function tick() {
 }
 function togglePlay() { var v = PL.v; if (v.paused) v.play().catch(function () {}); else v.pause(); }
 function skip(s) { if (PL.live) return; seekTo(curPos() + s); }
-function seekTo(t) { var d = totalDur(); t = Math.max(0, d ? Math.min(d - 1, t) : t); if (PL.mode === 'transcode') { if (PL.pend == null) PL.sdir = t > curPos() ? 1 : -1; else PL.sdir = t > PL.pend ? 1 : -1; PL.pend = t; clearTimeout(PL.pendT); PL.pendT = setTimeout(function () { var x = PL.pend; PL.pend = null; if (PL.open) begin(x); }, 350); } else { var vv = PL.v; vv.currentTime = t; directCheck(vv, t); } tick(); }   /* sauts rapides regroupés : une seule relance de la conversion */
+function seekTo(t) { var d = totalDur(); t = Math.max(0, d ? Math.min(d - 1, t) : t); PL.lastP = t; if (PL.mode === 'transcode') { if (PL.pend == null) PL.sdir = t > curPos() ? 1 : -1; else PL.sdir = t > PL.pend ? 1 : -1; PL.pend = t; clearTimeout(PL.pendT); PL.pendT = setTimeout(function () { var x = PL.pend; PL.pend = null; if (PL.open) begin(x); }, 350); } else { var vv = PL.v; vv.currentTime = t; directCheck(vv, t); } tick(); }   /* sauts rapides regroupés : une seule relance de la conversion */
 function directCheck(vv, t) {   // lecture directe : si le fichier ne sait pas « sauter » (le film repart du début), on bascule sur la conversion à la bonne minute
   if (t < 8) return; setTimeout(function () {
     if (!PL.open || PL.v !== vv || PL.mode !== 'direct' || PL.live || PL.seekFix) return;
@@ -1260,8 +1261,22 @@ async function startItem() {
   if (d.kind === 'vod' && d.dur) PL.dur = d.dur;
   begin(st); heartbeat('playing');
 }
+function updateQi() {   // bandeau « qualité de lecture » (comme Plex) : disparaît avec la barre
+  if (!PL.open || !PL.R) return; var box = PL.R('qi'); if (!box) return; var inf = PL.info && PL.info.info, v = inf && inf.video, vid = PL.v, h = '';
+  var pill = function (t, k) { h += '<span' + (k ? ' class="k"' : '') + '>' + esc(t) + '</span>'; };
+  var codecs = { h264: 'H.264', hevc: 'HEVC', av1: 'AV1', vp9: 'VP9', mpeg2video: 'MPEG-2', vc1: 'VC-1' }, vw = vid.videoWidth || 0, vh = vid.videoHeight || 0, outRes = vh ? resLabel(Math.max(vh, Math.round(vw * 9 / 16))) : '';
+  var mode = PL.live ? 'Direct' : PL.mode === 'direct' ? 'Lecture directe' : (PL.qsel === 'remux' ? 'Image d’origine · son converti' : 'Conversion ' + ({ auto: '', 2160: '4K', 1440: '1440p', 1080: '1080p', 720: '720p', 480: '480p', 360: '360p' }[PL.qsel] || ''));
+  pill(mode, PL.mode === 'direct' && !PL.live);
+  if (v && !PL.live) {
+    var res = resLabel(Math.max(v.h || 0, Math.round((v.w || 0) * 9 / 16)));
+    pill(res + (v.w && v.h ? ' · ' + v.w + '×' + v.h : '')); pill(codecs[v.codec] || String(v.codec || '').toUpperCase()); if (v.hdr) pill('HDR'); if (v.fps) pill(Math.round(v.fps) + ' i/s');
+    if (PL.mode === 'transcode' && PL.qsel !== 'remux' && outRes && outRes !== res) pill('Sortie ' + outRes);
+    var a = inf.audio && inf.audio[PL.audio || 0]; if (a) pill('Audio ' + String(a.codec || '').toUpperCase().replace('EAC3', 'E-AC3') + (a.ch ? ' ' + (a.ch > 2 ? (a.ch - 1) + '.1' : a.ch + '.0') : ''));
+  } else if (vh) { pill(outRes + ' · ' + vw + '×' + vh); }   // pas d'analyse du fichier (ex. IPTV) : on affiche ce que l'appareil reçoit réellement
+  box.innerHTML = h;
+}
 function begin(t) {
-  var v = PL.v, d = PL.d; t = Math.max(0, t || 0); PL.pend = null; clearTimeout(PL.pendT); PL.off = 0; PL.err = false;
+  var v = PL.v, d = PL.d; t = Math.max(0, t || 0); PL.pend = null; clearTimeout(PL.pendT); updateQi(); PL.off = 0; PL.err = false;
   var errBox = $('.mid', PL.root); errBox.innerHTML = '<div class="spin"></div>';
   if (PL.mode === 'direct') { v.src = d.kind === 'local' ? '/stream/' + d.id : d.src; if (t > 1) v.addEventListener('loadedmetadata', function f() { v.removeEventListener('loadedmetadata', f); try { v.currentTime = t; } catch (e) {} }); }
   else {
@@ -1280,8 +1295,8 @@ function applySub() {
 function onError() {
   var d = PL.d, v = PL.v; if (!d || PL.live) return;
   var canConv = d.kind === 'local' ? (PL.info && PL.info.ffmpeg) : (d.conv && S.cfg.ffmpeg);
-  if (canConv && PL.mode === 'direct') { var vi = PL.info && PL.info.info && PL.info.info.video; PL.mode = 'transcode'; PL.qsel = (d.kind === 'local' && vi && vi.codec === 'h264') ? 'remux' : (prefs().quality || 'auto'); begin(curPos()); return; }
-  if (canConv && PL.mode === 'transcode' && PL.qsel === 'remux') { PL.qsel = prefs().quality && prefs().quality !== 'orig' ? prefs().quality : 'auto'; begin(curPos()); return; }
+  if (canConv && PL.mode === 'direct') { var vi = PL.info && PL.info.info && PL.info.info.video, at = PL.lastP || curPos(); PL.mode = 'transcode'; PL.qsel = (d.kind === 'local' && vi && vi.codec === 'h264') ? 'remux' : (prefs().quality || 'auto'); PL.off = 0; begin(at); return; }   /* on reprend là où l'on était, jamais à zéro */
+  if (canConv && PL.mode === 'transcode' && PL.qsel === 'remux') { PL.qsel = prefs().quality && prefs().quality !== 'orig' ? prefs().quality : 'auto'; begin(PL.lastP || curPos()); return; }
   PL.err = true; $('.mid', PL.root).innerHTML = '<div style="background:rgba(0,0,0,.8);padding:20px 26px;border-radius:10px;max-width:520px;text-align:center;pointer-events:auto"><b>Lecture impossible</b><p class="msg">Ce format n’est pas lisible par cet appareil.' + (S.cfg.ffmpeg ? '' : ' Installez ffmpeg sur le serveur (Réglages → Transcodeur) pour lire tous les formats.') + '</p></div>';
 }
 var NEXT_AT = 10;   // secondes avant la fin
@@ -1346,7 +1361,7 @@ function sendProgress(state, done) {
 }
 function heartbeat(state) { if (PL.open) sendProgress(state); }
 async function closePlayer(silent) {
-  if (!PL.open) return; var p = PL; try { var dd = p.d; if (dd && dd.k) { var fk = dd.k.indexOf('xe|') === 0 ? 'xe' + dd.k.slice(3) : (dd.k.indexOf('f|') === 0 && dd.sub ? 'ep' + dd.k : null); if (fk) S.focusMemo = { h: location.hash, k: fk }; } } catch (e) {} hideNextWindow(); if (p.nwCover) p.nwCover.remove(); clearInterval(p.hbT); clearInterval(p.nextIv); clearTimeout(p.ctlT); document.removeEventListener('keydown', p.keyFn, true);
+  if (!PL.open) return; var p = PL; try { var dd = p.d; if (dd && dd.k) { var fk = dd.k.indexOf('xe|') === 0 ? 'xe' + dd.k.slice(3) : (dd.k.indexOf('f|') === 0 && dd.sub ? 'ep' + dd.k : null); if (fk) S.focusMemo = { h: location.hash, k: fk }; } } catch (e) {} hideNextWindow(); if (p.nwCover) p.nwCover.remove(); clearInterval(p.hbT); clearInterval(p.nextIv); clearTimeout(p.ctlT); document.removeEventListener('keydown', p.keyFn, true); document.removeEventListener('keyup', plKeyUp, true);
   try { sendProgress('stopped'); } catch (e) {} if (p.hls) { try { p.hls.destroy(); } catch (e) {} }
   try { p.v.pause(); p.v.removeAttribute('src'); p.v.load(); } catch (e) {} try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} p.root.remove(); PL = { open: false }; document.body.style.overflow = '';
   if (!silent) { setTimeout(async function () { try { await refreshState(); } catch (e) {} if (!PL.open) idleRoute(); }, 700); }
@@ -1369,7 +1384,7 @@ function openMenu(kind) {
   if (kind === 'qual' || kind === 'all') {
     m.append(el('h4', '', 'Qualité')); var can = (d.kind === 'local' ? PL.info && PL.info.ffmpeg : d.conv && S.cfg.ffmpeg);
     var q = function (key, label) { item(label, PL.qsel === key, function () { var t = curPos(); if (key === 'orig') { var pl0 = can && PL.info ? playPlan(PL.info) : 'direct'; if (pl0 === 'direct') { PL.mode = 'direct'; PL.qsel = 'orig'; } else { PL.mode = 'transcode'; PL.qsel = pl0 === 'remux' ? 'remux' : 'auto'; toast('Son converti automatiquement (AC3/DTS non lisible ici)'); } } else { if (!can) { toast('La conversion nécessite ffmpeg sur le serveur'); return; } PL.mode = 'transcode'; PL.qsel = key; } begin(t); }); };
-    q('orig', 'Original (image d’origine)'); q('remux', 'Son converti seulement (rapide, image d’origine)'); q('auto', 'Auto (conversion complète)'); q('1080', '1080p · 8 Mb/s'); q('720', '720p · 4 Mb/s'); q('480', '480p · 1,5 Mb/s'); q('360', '360p · 0,8 Mb/s');
+    q('orig', 'Original (image d’origine)'); q('remux', 'Son converti seulement (rapide, image d’origine)'); q('auto', 'Auto (conversion complète)'); q('2160', '4K · 30 Mb/s (carte graphique conseillée)'); q('1440', '1440p · 16 Mb/s'); q('1080', '1080p · 8 Mb/s'); q('720', '720p · 4 Mb/s'); q('480', '480p · 1,5 Mb/s'); q('360', '360p · 0,8 Mb/s');
     m.append(el('h4', '', 'Vitesse')); [0.75, 1, 1.25, 1.5, 2].forEach(function (r) { item(r + '×', (PL.rate || 1) === r, function () { PL.rate = r; PL.v.playbackRate = r; }); });
     }
   if (kind === 'subs' || kind === 'all') {
@@ -1396,6 +1411,11 @@ function startLive(d) {
 async function showChInfo(d) {
   var old = $('.chinfo', PL.root); if (old) old.remove(); var b = el('div', 'chinfo', '<h3><span class="n">' + (d.num || PL.i + 1) + '</span>' + esc(d.title) + '</h3><p>…</p>'); PL.root.append(b); clearTimeout(PL.infoT); PL.infoT = setTimeout(function () { b.style.opacity = 0; }, 5500);
   if (d.sid) { try { var e = await api('/api/epg?stream_id=' + d.sid); if (PL.d !== d) return; var now = Date.now() / 1000, cur = e.filter(function (x) { return x.s <= now && x.e > now; })[0] || e[0], nxt = e[e.indexOf(cur) + 1]; if (cur) $('p', b).innerHTML = '<b>' + esc(cur.t) + '</b> · ' + new Date(cur.s * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ' – ' + new Date(cur.e * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (cur.d ? '<br>' + esc(cur.d.slice(0, 160)) : '') + (nxt ? '<br><span style="color:#888">Ensuite : ' + esc(nxt.t) + '</span>' : '') + '<div class="pb"><i style="width:' + Math.max(0, Math.min(100, 100 * (now - cur.s) / (cur.e - cur.s))) + '%"></i></div>'; else $('p', b).textContent = 'Programme non disponible'; } catch (x) { $('p', b).textContent = ''; } } else $('p', b).textContent = d.sub || 'En direct';
+}
+function plKeyUp(e) {
+  if (!PL.open || !PL.live || (e.key !== 'Enter' && e.key !== ' ') || !PL.okT) return;
+  var tgt = e.target; if (tgt && tgt.closest && tgt.closest('.ctl,.top,.nw,.pmenu,.chdrawer')) { PL.okT = 0; return; }
+  var was = PL.okDone; PL.okT = 0; if (!was && !PL.menu && !PL.drawer && !PL.nextBox) openDrawer();
 }
 async function toggleChFav() { var d = PL.d, on = S.st.favCh.indexOf(d.id) < 0; try { var r = await post('/api/favch', { id: d.id, on: on }); S.st.favCh = r.favCh; PL.A('fav').classList.toggle('on', on); toast(on ? 'Chaîne ajoutée aux favoris ★' : 'Chaîne retirée des favoris'); } catch (e) {} }
 function chapList() {
@@ -1439,7 +1459,11 @@ function plKey(e) {
   if (PL.cf && onCtl && k === 'ArrowDown' && !PL.live && tgt.closest('.ctl')) { e.preventDefault(); e.stopPropagation(); openChapters(); return; }
   if (PL.cf && onCtl && dir) { e.preventDefault(); e.stopPropagation(); showCtl(); moveFocus(dir[0], dir[1], PL.root); return; }
   if (k === 'Enter' && onCtl) { return; }
-  if (k === 'Enter' || k === ' ') { if (tgt && tgt.tagName === 'INPUT') return; e.preventDefault(); if (PL.live) openDrawer(); else { togglePlay(); showCtl(); } return; }
+  if (k === 'Enter' || k === ' ') {
+    if (tgt && tgt.tagName === 'INPUT') return; e.preventDefault();
+    if (PL.live) { if (!e.repeat) { PL.okT = Date.now(); PL.okDone = false; } else if (!PL.okDone && Date.now() - (PL.okT || 0) > 700) { PL.okDone = true; toggleChFav(); } return; }   // direct : OK = liste des chaînes, OK maintenu = favori
+    togglePlay(); showCtl(); return;
+  }
   if (k === 'ContextMenu' || k === 'Menu' || kc === 82 || kc === 93) { e.preventDefault(); if (PL.live) toggleChFav(); else openMenu('all'); return; }
   if (k === 'f' || k === 'F') { toggleFull(); return; } if (k === 'm' || k === 'M') { PL.v.muted = !PL.v.muted; return; } if (k === 'c' || k === 'C') { openMenu('subs'); return; }
   if (dir) {
@@ -1626,7 +1650,9 @@ ROUTES.settings = async function (v, p) {
     status(); S.actT = setInterval(status, 3000);
     if (!libs.length) ll.innerHTML = '<p class="msg">Aucune bibliothèque. Cliquez sur « Ajouter une bibliothèque ».</p>';
     libs.forEach(function (l, i) {
-      var r = el('div', 'lrow', '<div class="t"><b>' + esc(l.name) + '</b> · ' + esc(typeLabel(l.type)) + '<small>' + esc((l.paths || []).join('  ·  ')) + '</small></div><button class="btn sm">Scanner</button><button class="btn sm ghost">Actualiser les infos</button><button class="btn sm ghost">Modifier</button><button class="btn sm danger">Supprimer</button>'); var b = $$('button', r);
+      var r = el('div', 'lrow', '<div class="t"><b>' + esc(l.name) + '</b> · ' + esc(typeLabel(l.type)) + '<small>' + esc((l.paths || []).join('  ·  ')) + '</small></div><button class="btn sm">Scanner</button><button class="btn sm ghost">Actualiser les infos</button><button class="btn sm ghost">Modifier</button><button class="btn sm danger">Supprimer</button><button class="btn sm ghost" title="Monter">▲</button><button class="btn sm ghost" title="Descendre">▼</button>'); var b = $$('button', r);
+      var mv = function (dir) { return async function () { var j = i + dir; if (j < 0 || j >= libs.length) return; var o = libs.slice(), x = o[i]; o[i] = o[j]; o[j] = x; try { await post('/api/config', { libraries: o }); await reloadAll(); buildHeader(); toast('Ordre enregistré'); ROUTES.settings(v, ['libs']); } catch (e) { toast(e.message); } }; };
+      b[4].onclick = mv(-1); b[5].onclick = mv(1); if (i === 0) b[4].style.opacity = .35; if (i === libs.length - 1) b[5].style.opacity = .35;
       b[0].onclick = async function () { await post('/api/scan'); toast('Scan lancé'); setTimeout(status, 800); pollScan(); }; b[1].onclick = async function () { await post('/api/library-action', { action: 'refresh', uid: l.uid }); toast('Actualisation des métadonnées lancée'); pollScan(); };
       b[2].onclick = function () { libWizard(i, libs, function () { ROUTES.settings(v, ['libs']); }); }; b[3].onclick = function () { confirmBox('Supprimer la bibliothèque « ' + l.name + ' » ? Vos fichiers ne sont pas effacés.', async function () { await post('/api/config', { libraries: libs.filter(function (_, k) { return k !== i; }) }); await reloadAll(); buildHeader(); ROUTES.settings(v, ['libs']); }, 'Supprimer'); }; ll.append(r);
     });
