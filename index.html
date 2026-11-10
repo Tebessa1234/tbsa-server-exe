@@ -903,10 +903,25 @@ async function playTrailer(m) {
   if (!r.local && !r.yt && !r.direct) { toast(r.tmdb ? 'Aucune bande-annonce trouvée pour ce titre' : 'Ajoutez une clé TMDB dans Réglages pour récupérer les bandes-annonces'); return; }
   stopTheme(); var o = openOv('<div class="trl"></div><button class="ibtn trx" data-a="x" title="Fermer">' + ic('x') + '</button>' + (r.yt ? '<a class="btn ghost trys" target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=' + encodeURIComponent(r.yt) + '">Ouvrir sur YouTube</a>' : ''));
   o.dlg.classList.add('trailer'); o.dlg.parentNode.style.cssText += ';padding:0;background:#000'; var box = $('.trl', o.dlg), fsEl = o.dlg;
-  if (r.local || r.direct) { var vd = el('video'); vd.controls = true; vd.autoplay = true; vd.src = r.direct ? r.direct : '/trailer-file/' + m.id; vd.setAttribute('playsinline', ''); box.append(vd); setTimeout(function () { try { vd.focus(); } catch (e) {} }, 200); vd.onended = function () { o.close(); }; }
+  if (r.local || r.direct) {
+    var vd = el('video'), tried = false, gone = false; vd.controls = true; vd.autoplay = true; vd.setAttribute('playsinline', '');
+    var msg = el('div'); msg.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#fff;font-size:1.2em;text-align:center;padding:20px'; box.style.position = 'relative'; box.append(vd, msg);
+    var fallback = async function () {
+      if (tried || gone || !r.local) return; tried = true; msg.style.display = 'flex'; msg.textContent = 'Préparation de la bande-annonce… (première lecture seulement)';
+      try { await api('/api/trailer-prepare/' + m.id); } catch (e) { msg.textContent = 'Lecture impossible : ' + e.message; return; }
+      if (gone) return; msg.style.display = 'none'; vd.src = '/trailer-file/' + m.id + '?c=1'; try { vd.play(); } catch (e) {}
+    };
+    vd.onerror = fallback;
+    if (r.local && !r.ready) fallback(); else {
+      vd.src = r.direct ? r.direct : '/trailer-file/' + m.id;
+      if (r.local) setTimeout(function () { if (!gone && !tried && (!vd.videoWidth || vd.currentTime < 0.2)) fallback(); }, 5000);
+    }
+    vd._gone = function () { gone = true; };
+    setTimeout(function () { try { vd.focus(); } catch (e) {} }, 200); vd.onended = function () { o.close(); };
+  }
   else { var fr = el('iframe'); fr.allow = 'autoplay; fullscreen; encrypted-media'; fr.setAttribute('allowfullscreen', ''); fr.referrerPolicy = 'strict-origin-when-cross-origin'; fr.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(r.yt) + '?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0'; box.append(fr); fr.onload = function () { try { fr.focus(); } catch (e) {} }; }
   try { var rf = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen; if (rf) { var pr = rf.call(fsEl); if (pr && pr.catch) pr.catch(function () {}); } } catch (e) {}
-  var c0 = o.close, done = false; o.close = function () { if (done) return; done = true; box.innerHTML = ''; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} c0(); };
+  var c0 = o.close, done = false; o.close = function () { if (done) return; done = true; try { var vv = $('video', box); if (vv && vv._gone) vv._gone(); } catch (e) {} box.innerHTML = ''; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} c0(); };
   $('[data-a=x]', o.dlg).onclick = function () { o.close(); };
 }
 function trailerDlg(m) {

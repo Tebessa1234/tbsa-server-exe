@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.10.0', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.10.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -494,6 +494,30 @@ function videoArgs(q) {
   if (t.hw === 'amf' && ENC.includes('h264_amf')) return ['-vf', vf, '-c:v', 'h264_amf', '-b:v', Q.b + 'k', ...rate];
   return ['-vf', vf, '-c:v', 'libx264', '-preset', t.preset || 'veryfast', '-crf', '23', ...rate];
 }
+
+/* ---------- bandes-annonces locales : version compatible (MP4 H.264/AAC, faststart) mise en cache ---------- */
+const trSrc = i => ovFile(i) || localTrailer(i);
+async function trReady(src) {
+  if (/^https?:/.test(src)) return true;
+  const pr = await probe(src); if (!pr || !pr.video) return false;
+  const v = pr.video, okC = /mov|mp4/.test(pr.container || ''), okV = v.codec === 'h264' && !/10|4:2:2|4:4:4/.test(v.profile || '') && !v.hdr && (v.w || 0) <= 1920, okA = !pr.audio.length || pr.audio.every(a => ['aac', 'mp3'].includes(a.codec) && a.ch <= 2);
+  return okC && okV && okA;
+}
+const COMPAT = new Map();
+function compatPath(src) { let st; try { st = fs.statSync(src); } catch { return null; } return path.join(TRL_DIR, 'c_' + sha(src + '|' + st.size + '|' + st.mtimeMs).slice(0, 20) + '.mp4'); }
+function compatTrailer(src) {
+  const out = compatPath(src); if (!out) return Promise.resolve(null);
+  if (fs.existsSync(out)) return Promise.resolve(out);
+  if (COMPAT.has(out)) return COMPAT.get(out);
+  try { fs.mkdirSync(TRL_DIR, { recursive: true }); } catch {}
+  const tmp = out + '.tmp.mp4';
+  const p = new Promise(res => {
+    if (!FFMPEG) return res(null);
+    const args = ['-y', '-v', 'error', '-i', src, '-map', '0:v:0', '-map', '0:a:0?', '-sn', '-dn', ...videoArgs('1080'), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', '-ac', '2', '-movflags', '+faststart', tmp];
+    execFile(FFMPEG, args, { timeout: 600000, maxBuffer: 16e6 }, e => { if (e) { try { fs.unlinkSync(tmp); } catch {} return res(null); } try { fs.renameSync(tmp, out); res(out); } catch { res(null); } });
+  }).then(r => { COMPAT.delete(out); return r; });
+  COMPAT.set(out, p); return p;
+}
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -692,7 +716,7 @@ SRV = http.createServer(async (req, res) => {
 
     /* --- bibliothèque --- */
     if (p === '/api/library') return J(req, res, index.filter(i => allowedLib(me, cfg.libraries[i.libId])).map(i => itemOut(i, S)));
-    if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const ov = OVT[mkey(i)]; if (ov) { if (ov.file) { if (ovFile(i)) return J(req, res, { local: true, manual: true, name: ov.name || '' }); } else return J(req, res, ov.none ? { yt: '', none: true, tmdb: !!cfg.tmdb } : ov.direct ? { yt: '', direct: ov.direct, name: ov.name || '', manual: true } : { yt: ov.yt, name: ov.name || '', manual: true, tmdb: !!cfg.tmdb }); } const lt = localTrailer(i); if (lt) return J(req, res, { local: true }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
+    if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const ov = OVT[mkey(i)]; if (ov) { if (ov.file) { if (ovFile(i)) return J(req, res, { local: true, manual: true, name: ov.name || '', ready: await trReady(ovFile(i)) || !!(compatPath(ovFile(i)) && fs.existsSync(compatPath(ovFile(i)))) }); } else return J(req, res, ov.none ? { yt: '', none: true, tmdb: !!cfg.tmdb } : ov.direct ? { yt: '', direct: ov.direct, name: ov.name || '', manual: true } : { yt: ov.yt, name: ov.name || '', manual: true, tmdb: !!cfg.tmdb }); } const lt = localTrailer(i); if (lt) return J(req, res, { local: true, ready: await trReady(lt) || !!(compatPath(lt) && fs.existsSync(compatPath(lt))) }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
     if (p.startsWith('/api/trailer-list/')) { if (!need()) return; const i = itemFor(me, +p.slice(18)); if (!i) return J(req, res, [], 404); return J(req, res, await trailerList(i)); }
     if (p === '/api/trailer-set' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req)), i = itemFor(me, +b.id); if (!i) return J(req, res, { error: 'Introuvable' }, 404); const k = mkey(i);
@@ -710,7 +734,8 @@ SRV = http.createServer(async (req, res) => {
       req.on('aborted', () => { try { out.destroy(); fs.unlinkSync(dest); } catch {} });
       return;
     }
-    if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && (ovFile(i) || localTrailer(i)); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
+    if (p.startsWith('/api/trailer-prepare/')) { const i = itemFor(me, +p.slice(21)), f = i && trSrc(i); if (!f) return J(req, res, {}, 404); if (await trReady(f)) return J(req, res, { ok: true, same: true }); const c = await compatTrailer(f); return c ? J(req, res, { ok: true }) : J(req, res, { error: 'Conversion impossible (ffmpeg ?)' }, 500); }
+    if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && trSrc(i); if (!f) { res.writeHead(404); return res.end(); } let g = f; if (u.searchParams.get('c') || !(await trReady(f))) { const cp = compatPath(f); if (cp && fs.existsSync(cp)) g = cp; } return serveFile(req, res, g, false); }
     if (p.startsWith('/api/item/')) { const i = itemFor(me, +p.slice(10)); return i ? J(req, res, itemFull(i, S)) : J(req, res, { error: 'introuvable' }, 404); }
     if (p.startsWith('/api/chthumb/')) {   // vignette d'un chapitre (image extraite du film, mise en cache)
       const i = itemFor(me, +p.slice(13)), t = Math.max(0, +q.get('t') || 0);
