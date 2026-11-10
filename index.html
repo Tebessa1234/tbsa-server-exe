@@ -1415,7 +1415,21 @@ async function showChInfo(d) {
 function plKeyUp(e) {
   if (!PL.open || !PL.live || (e.key !== 'Enter' && e.key !== ' ') || !PL.okT) return;
   var tgt = e.target; if (tgt && tgt.closest && tgt.closest('.ctl,.top,.nw,.pmenu,.chdrawer')) { PL.okT = 0; return; }
-  var was = PL.okDone; PL.okT = 0; if (!was && !PL.menu && !PL.drawer && !PL.nextBox) openDrawer();
+  clearTimeout(PL.okTm); var was = PL.okDone; PL.okT = 0; if (!was && !PL.menu && !PL.drawer && !PL.nextBox) openDrawer();
+}
+var LONG_MS = 600;
+function longOK(node, short, long) {   // OK court = action normale ; OK maintenu = action longue (ne dépend pas de la répétition des touches : minuteur)
+  var tm = 0, done = false, down = false;
+  node.addEventListener('keydown', function (e) {
+    if (e.key === 'ContextMenu' || e.key === 'Menu' || e.keyCode === 82 || e.keyCode === 93) { e.preventDefault(); e.stopPropagation(); long(); return; }
+    if (e.key !== 'Enter') return; e.preventDefault(); e.stopPropagation(); if (down) return; down = true; done = false; clearTimeout(tm); tm = setTimeout(function () { done = true; long(); }, LONG_MS);
+  });
+  node.addEventListener('keyup', function (e) { if (e.key !== 'Enter') return; e.preventDefault(); e.stopPropagation(); clearTimeout(tm); if (down && !done) short(); down = false; });
+  node.addEventListener('blur', function () { clearTimeout(tm); down = false; });
+}
+async function favToggleId(id, name) {
+  var on = S.st.favCh.indexOf(id) < 0;
+  try { var r = await post('/api/favch', { id: id, on: on }); S.st.favCh = r.favCh; toast(on ? '★ ' + name + ' ajoutée aux favoris' : name + ' retirée des favoris'); return on; } catch (e) { toast('Favori impossible : ' + e.message); return null; }
 }
 async function toggleChFav() { var d = PL.d, on = S.st.favCh.indexOf(d.id) < 0; try { var r = await post('/api/favch', { id: d.id, on: on }); S.st.favCh = r.favCh; PL.A('fav').classList.toggle('on', on); toast(on ? 'Chaîne ajoutée aux favoris ★' : 'Chaîne retirée des favoris'); } catch (e) {} }
 function chapList() {
@@ -1433,7 +1447,7 @@ function openChapters() {
 function closeDrawer() { if (PL.drawer) { PL.drawer.remove(); PL.drawer = null; } }
 function openDrawer() {
   if (!PL.live) return; closeMenu(); closeDrawer(); var dr = el('div', 'chdrawer', '<h4>Chaînes · ' + PL.q.length + '</h4>'), lo = Math.max(0, PL.i - 40), hi = Math.min(PL.q.length, PL.i + 160);
-  for (var n = lo; n < hi; n++) (function (n) { var c = PL.q[n], a = el('a', n === PL.i ? 'cur' : '', '<span class="n">' + (c.num || n + 1) + '</span>' + (c.poster ? '<img src="' + esc(c.poster) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(c.title) + '</span>'); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeDrawer(); if (n !== PL.i) { PL.prevI = PL.i; sendProgress('stopped'); PL.i = n; startItem(); } }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; dr.append(a); })(n);
+  for (var n = lo; n < hi; n++) (function (n) { var c = PL.q[n], a = el('a', n === PL.i ? 'cur' : '', '<span class="n">' + (c.num || n + 1) + '</span>' + (c.poster ? '<img src="' + esc(c.poster) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(c.title) + '</span>'); a.tabIndex = 0; a.onclick = function (e) { e.stopPropagation(); closeDrawer(); if (n !== PL.i) { PL.prevI = PL.i; sendProgress('stopped'); PL.i = n; startItem(); } }; longOK(a, function () { a.click(); }, async function () { var on = await favToggleId(c.id, c.title); if (on !== null) { var sp = $('.fv', a); if (sp) sp.remove(); if (on) a.insertAdjacentHTML('beforeend', '<span class="fv" style="margin-left:auto;color:#f5c518">★</span>'); } }); if (S.st.favCh.indexOf(c.id) >= 0) a.insertAdjacentHTML('beforeend', '<span class="fv" style="margin-left:auto;color:#f5c518">★</span>'); dr.append(a); })(n);
   PL.root.append(dr); PL.drawer = dr; var cur = $('a.cur', dr) || $('a', dr); if (cur) { cur.focus(); cur.scrollIntoView({ block: 'center' }); } showCtl();
 }
 function chanDigits(k) {
@@ -1461,7 +1475,7 @@ function plKey(e) {
   if (k === 'Enter' && onCtl) { return; }
   if (k === 'Enter' || k === ' ') {
     if (tgt && tgt.tagName === 'INPUT') return; e.preventDefault();
-    if (PL.live) { if (!e.repeat) { PL.okT = Date.now(); PL.okDone = false; } else if (!PL.okDone && Date.now() - (PL.okT || 0) > 700) { PL.okDone = true; toggleChFav(); } return; }   // direct : OK = liste des chaînes, OK maintenu = favori
+    if (PL.live) { if (!PL.okT || Date.now() - PL.okT > 2500) { PL.okT = Date.now(); PL.okDone = false; clearTimeout(PL.okTm); PL.okTm = setTimeout(function () { PL.okDone = true; toggleChFav(); }, LONG_MS); } return; }   // direct : OK = liste des chaînes, OK maintenu = favori
     togglePlay(); showCtl(); return;
   }
   if (k === 'ContextMenu' || k === 'Menu' || kc === 82 || kc === 93) { e.preventDefault(); if (PL.live) toggleChFav(); else openMenu('all'); return; }
@@ -1484,13 +1498,7 @@ function chanCard(c, list, idx) {
   var tgl = async function () { var on = S.st.favCh.indexOf(c.id) < 0; try { var r = await post('/api/favch', { id: c.id, on: on }); S.st.favCh = r.favCh; $('.star', cd).classList.toggle('on', on); toast(on ? '★ ' + c.name + ' ajoutée aux favoris' : c.name + ' retirée des favoris'); } catch (e) {} };
   $('.star', cd).onclick = function (e) { e.stopPropagation(); tgl(); };
   var f = function () { if (list) play(list.map(descLive), idx, { live: true }); else play([descLive(c)], 0, { live: true }); }; cd.onclick = f;
-  var t0 = 0, done = false;   // télécommande : OK = lire, OK maintenu (ou touche Menu) = favori
-  cd.onkeydown = function (e) {
-    if (e.key === 'ContextMenu' || e.key === 'Menu' || e.keyCode === 82 || e.keyCode === 93) { e.preventDefault(); tgl(); return; }
-    if (e.key !== 'Enter') return; e.preventDefault();
-    if (!e.repeat) { t0 = Date.now(); done = false; } else if (!done && Date.now() - t0 > 650) { done = true; tgl(); }
-  };
-  cd.onkeyup = function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!done && t0) f(); t0 = 0; } };
+  longOK(cd, f, tgl);   // télécommande : OK = lire, OK maintenu (ou touche Menu) = favori
   return cd;
 }
 function pillsBar(items, cur, fn) {
