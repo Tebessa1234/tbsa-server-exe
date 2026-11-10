@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.9.2', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.10.0', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -256,6 +256,16 @@ function localTrailer(it) {
   return null;
 }
 const TRL = load('trailers.json', {});
+const TRL_DIR = path.join(DATA, 'trailers'), OVT = TRL.__ov || (TRL.__ov = {});
+const ovFile = i => { const o = OVT[mkey(i)]; if (!o || !o.file) return null; const f = path.join(TRL_DIR, path.basename(o.file)); return fs.existsSync(f) ? f : null; };
+const dropOvFile = k => { const o = OVT[k]; if (o && o.file) { try { fs.unlinkSync(path.join(TRL_DIR, path.basename(o.file))); } catch {} } };   // bandes-annonces choisies à la main (clé = fiche)
+const ytId = x => { x = String(x || '').trim(); const m = x.match(/(?:v=|youtu\.be\/|embed\/|shorts\/|live\/)([\w-]{11})/) || x.match(/^([\w-]{11})$/); return m ? m[1] : ''; };
+async function trailerList(i) {
+  const m = M(i); if (!m.id || !cfg.tmdb) return [];
+  const kind = i.type === 'shows' ? 'tv' : 'movie', out = [], seen = new Set();
+  for (const lg of [i.lang || 'fr-FR', 'en-US']) { try { const r = await tmdb('/' + kind + '/' + m.id + '/videos', {}, lg); for (const x of (r.results || [])) if (x.site === 'YouTube' && x.key && !seen.has(x.key)) { seen.add(x.key); out.push({ key: x.key, name: x.name || '', type: x.type || '', lang: x.iso_639_1 || '' }); } } catch {} }
+  return out;
+}
 async function trailerFor(i) {
   const m = M(i), key = i.type === 'shows' ? 'tv' + m.id : 'mv' + m.id, c = TRL[key];
   if (c && (c.yt || Date.now() - c.t < 7 * 864e5)) return c;
@@ -682,8 +692,25 @@ SRV = http.createServer(async (req, res) => {
 
     /* --- bibliothèque --- */
     if (p === '/api/library') return J(req, res, index.filter(i => allowedLib(me, cfg.libraries[i.libId])).map(i => itemOut(i, S)));
-    if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const lt = localTrailer(i); if (lt) return J(req, res, { local: true }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
-    if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && localTrailer(i); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
+    if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const ov = OVT[mkey(i)]; if (ov) { if (ov.file) { if (ovFile(i)) return J(req, res, { local: true, manual: true, name: ov.name || '' }); } else return J(req, res, ov.none ? { yt: '', none: true, tmdb: !!cfg.tmdb } : ov.direct ? { yt: '', direct: ov.direct, name: ov.name || '', manual: true } : { yt: ov.yt, name: ov.name || '', manual: true, tmdb: !!cfg.tmdb }); } const lt = localTrailer(i); if (lt) return J(req, res, { local: true }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
+    if (p.startsWith('/api/trailer-list/')) { if (!need()) return; const i = itemFor(me, +p.slice(18)); if (!i) return J(req, res, [], 404); return J(req, res, await trailerList(i)); }
+    if (p === '/api/trailer-set' && POST) {
+      if (!need()) return; const b = JSON.parse(await body(req)), i = itemFor(me, +b.id); if (!i) return J(req, res, { error: 'Introuvable' }, 404); const k = mkey(i);
+      if (b.reset) { dropOvFile(k); delete OVT[k]; } else if (b.none) { dropOvFile(k); OVT[k] = { none: true }; } else { const u = String(b.url || b.yt || '').trim(), y = ytId(u); if (y) { dropOvFile(k); OVT[k] = { yt: y, name: String(b.name || '').slice(0, 120) }; } else if (/^https?:\/\/\S+$/i.test(u)) { dropOvFile(k); OVT[k] = { direct: u, name: String(b.name || '').slice(0, 120) }; } else return J(req, res, { error: 'Lien non reconnu : collez une adresse YouTube ou l’adresse directe d’une vidéo (.mp4, .webm…)' }, 400); }
+      save('trailers.json', TRL); return ok({ ov: OVT[k] || null });
+    }
+    if (p === '/api/trailer-upload' && POST) {   // vidéo envoyée depuis le PC (écrite directement sur le disque, sans tout charger en mémoire)
+      if (!need()) { req.resume(); return; } const i = itemFor(me, +q.get('id')), nm = String(q.get('name') || 'video.mp4'), ext = path.extname(nm).slice(1).toLowerCase();
+      if (!i || !VEXT_T.includes(ext)) { req.resume(); return J(req, res, { error: 'Format non pris en charge (mp4, mkv, webm, m4v, mov, avi, ts)' }, 400); }
+      fs.mkdirSync(TRL_DIR, { recursive: true }); const k = mkey(i), fn = sha(k + '|' + Date.now()) + '.' + ext, dest = path.join(TRL_DIR, fn), out = fs.createWriteStream(dest); let n = 0, bad = false;
+      req.on('data', d => { n += d.length; if (n > 4e9 && !bad) { bad = true; req.destroy(); out.destroy(); try { fs.unlinkSync(dest); } catch {} } });
+      req.pipe(out);
+      out.on('finish', () => { if (bad) return; dropOvFile(k); OVT[k] = { file: fn, name: nm.replace(/\.[^.]+$/, '').slice(0, 120) }; save('trailers.json', TRL); ok({ ok: true }); });
+      out.on('error', e => { try { fs.unlinkSync(dest); } catch {} if (!res.headersSent) J(req, res, { error: 'Écriture impossible : ' + e.message }, 500); });
+      req.on('aborted', () => { try { out.destroy(); fs.unlinkSync(dest); } catch {} });
+      return;
+    }
+    if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && (ovFile(i) || localTrailer(i)); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
     if (p.startsWith('/api/item/')) { const i = itemFor(me, +p.slice(10)); return i ? J(req, res, itemFull(i, S)) : J(req, res, { error: 'introuvable' }, 404); }
     if (p.startsWith('/api/chthumb/')) {   // vignette d'un chapitre (image extraite du film, mise en cache)
       const i = itemFor(me, +p.slice(13)), t = Math.max(0, +q.get('t') || 0);

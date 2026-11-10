@@ -895,18 +895,44 @@ function heroDetail(f, m, acts) {
     '<div class="chips" style="margin-bottom:6px">' + (f.genres || []).map(function (g) { return '<span class="chip">' + esc(g) + '</span>'; }).join('') + (m.tags || []).filter(function (t) { return (f.genres || []).indexOf(t) < 0; }).map(function (t) { return '<span class="chip" style="border-color:#7a0409">' + esc(t) + '</span>'; }).join('') + '</div>' +
     (f.tagline ? '<div class="tag">« ' + esc(f.tagline) + ' »</div>' : '') + '<p class="ov-text">' + esc(f.overview || 'Aucun résumé disponible.' + (S.me.admin && !S.cfg.tmdbSet ? ' Ajoutez une clé TMDB dans Réglages pour récupérer résumés, affiches et casting.' : '')) + '</p>' +
     '<div class="crew">' + tagsLine(f.directors, m.kind === 'show' ? 'Création' : 'Réalisation') + tagsLine(f.writers, 'Scénario') + tagsLine(f.countries, 'Pays') + '</div><div class="acts"></div></div>';
-  acts(h); var ab = $('.acts', h); if (ab && m.ref) { ab.parentNode.insertBefore(starBar(m), ab); if (m.kind === 'movie' || m.kind === 'show') { var tb = actBtn('Bande-annonce', 'ghost', function () { playTrailer(m); }, 'play'); ab.insertBefore(tb, ab.children[1] || null); } } return h;
+  acts(h); var ab = $('.acts', h); if (ab && m.ref) { ab.parentNode.insertBefore(starBar(m), ab); if (m.kind === 'movie' || m.kind === 'show') { var tb = actBtn('Bande-annonce', 'ghost', function () { playTrailer(m); }, 'play'); ab.insertBefore(tb, ab.children[1] || null); if (S.me.admin) { var tb2 = actBtn('Modifier la bande-annonce', 'ghost', function () { trailerDlg(m); }); ab.insertBefore(tb2, tb.nextSibling); } } } return h;
 }
 async function playTrailer(m) {
   var r; try { r = await api('/api/trailer/' + m.id); } catch (e) { toast(e.message); return; }
-  if (!r.local && !r.yt) { toast(r.tmdb ? 'Aucune bande-annonce trouvée pour ce titre' : 'Ajoutez une clé TMDB dans Réglages pour récupérer les bandes-annonces'); return; }
+  if (r.none) { toast('Bande-annonce désactivée pour ce titre'); return; }
+  if (!r.local && !r.yt && !r.direct) { toast(r.tmdb ? 'Aucune bande-annonce trouvée pour ce titre' : 'Ajoutez une clé TMDB dans Réglages pour récupérer les bandes-annonces'); return; }
   stopTheme(); var o = openOv('<div class="trl"></div><button class="ibtn trx" data-a="x" title="Fermer">' + ic('x') + '</button>' + (r.yt ? '<a class="btn ghost trys" target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=' + encodeURIComponent(r.yt) + '">Ouvrir sur YouTube</a>' : ''));
   o.dlg.classList.add('trailer'); o.dlg.parentNode.style.cssText += ';padding:0;background:#000'; var box = $('.trl', o.dlg), fsEl = o.dlg;
-  if (r.local) { var vd = el('video'); vd.controls = true; vd.autoplay = true; vd.src = '/trailer-file/' + m.id; vd.setAttribute('playsinline', ''); box.append(vd); setTimeout(function () { try { vd.focus(); } catch (e) {} }, 200); vd.onended = function () { o.close(); }; }
+  if (r.local || r.direct) { var vd = el('video'); vd.controls = true; vd.autoplay = true; vd.src = r.direct ? r.direct : '/trailer-file/' + m.id; vd.setAttribute('playsinline', ''); box.append(vd); setTimeout(function () { try { vd.focus(); } catch (e) {} }, 200); vd.onended = function () { o.close(); }; }
   else { var fr = el('iframe'); fr.allow = 'autoplay; fullscreen; encrypted-media'; fr.setAttribute('allowfullscreen', ''); fr.referrerPolicy = 'strict-origin-when-cross-origin'; fr.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(r.yt) + '?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0'; box.append(fr); fr.onload = function () { try { fr.focus(); } catch (e) {} }; }
   try { var rf = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen; if (rf) { var pr = rf.call(fsEl); if (pr && pr.catch) pr.catch(function () {}); } } catch (e) {}
   var c0 = o.close, done = false; o.close = function () { if (done) return; done = true; box.innerHTML = ''; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {} c0(); };
   $('[data-a=x]', o.dlg).onclick = function () { o.close(); };
+}
+function trailerDlg(m) {
+  var o = openOv('<div class="dh2"><span>Bande-annonce : ' + esc(m.t || m.name || '') + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"></div></div><div class="df"><button class="btn ghost" data-a="reset">Remettre en automatique</button><span></span><button class="btn red" data-a="s">Terminé</button></div>');
+  var main = $('.dmain', o.dlg), cur = null, list = null;
+  var send = async function (body, msg) { try { await post('/api/trailer-set', Object.assign({ id: m.id }, body)); toast(msg); await draw(); } catch (e) { toast(e.message); } };
+  var draw = async function () {
+    try { cur = await api('/api/trailer/' + m.id); } catch (e) { cur = {}; }
+    if (list === null) { try { list = await api('/api/trailer-list/' + m.id); } catch (e) { list = []; } }
+    var st = cur.none ? 'Désactivée (aucune bande-annonce)' : cur.local ? 'Fichier local du dossier du film' : cur.yt ? (cur.manual ? 'Choisie à la main : ' : 'Automatique : ') + esc(cur.name || cur.yt) : 'Aucune trouvée';
+    main.innerHTML = '<p class="msg">Actuellement : <b>' + st + '</b></p><label class="fld">Coller un lien (YouTube ou adresse directe d’une vidéo .mp4 / .webm)</label><div class="row2"><input id="ty" placeholder="https://www.youtube.com/watch?v=…"><button class="btn sm" data-a="ap">Utiliser ce lien</button></div><label class="fld" style="margin-top:12px">Ou envoyer une vidéo depuis ce PC</label><div class="row2"><button class="btn sm" data-a="pc">Choisir un fichier vidéo…</button><span class="msg" data-r="up" style="margin:0"></span><input type="file" accept="video/*,.mkv,.ts" hidden data-r="fi"></div>' +
+      '<h3 style="margin:16px 0 6px">Vidéos proposées' + (list.length ? '' : ' (aucune : clé TMDB absente ou rien trouvé)') + '</h3><div class="tlist"></div><div class="acts" style="margin-top:14px"><button class="btn ghost" data-a="no">Aucune bande-annonce pour ce titre</button></div>';
+    $('[data-a=ap]', main).onclick = function () { var u = $('#ty', main).value.trim(); if (!u) { toast('Collez un lien YouTube'); return; } send({ url: u }, 'Bande-annonce enregistrée'); };
+    $('[data-a=no]', main).onclick = function () { send({ none: true }, 'Bande-annonce désactivée'); };
+    var fi = $('[data-r=fi]', main), up = $('[data-r=up]', main); $('[data-a=pc]', main).onclick = function () { fi.click(); };
+    fi.onchange = function () {
+      var f = fi.files[0]; if (!f) return; var x = new XMLHttpRequest(); x.open('POST', '/api/trailer-upload?id=' + encodeURIComponent(m.id) + '&name=' + encodeURIComponent(f.name));
+      x.upload.onprogress = function (e) { if (e.lengthComputable) up.textContent = 'Envoi… ' + Math.round(e.loaded / e.total * 100) + ' %'; };
+      x.onload = function () { if (x.status === 200) { toast('Bande-annonce enregistrée'); draw(); } else { var m2 = ''; try { m2 = JSON.parse(x.responseText).error; } catch (e) {} up.textContent = ''; toast(m2 || 'Envoi impossible'); } };
+      x.onerror = function () { up.textContent = ''; toast('Envoi interrompu'); }; up.textContent = 'Envoi… 0 %'; x.send(f);
+    };
+    var box = $('.tlist', main); list.forEach(function (x) { var b = el('button', 'btn ghost', esc(x.name || x.key) + ' <small style="opacity:.7">· ' + esc(x.type) + (x.lang ? ' · ' + esc(x.lang) : '') + '</small>'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px'; b.onclick = function () { send({ url: x.key, name: x.name }, 'Bande-annonce enregistrée'); }; box.append(b); });
+  };
+  $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
+  $('[data-a=reset]', o.dlg).onclick = function () { send({ reset: true }, 'Remise en automatique'); };
+  draw();
 }
 function actBtn(label, cls, fn, icon) { var b = el('button', 'btn ' + (cls || ''), (icon ? ic(icon, 20) + ' ' : '') + label); b.onclick = fn; return b; }
 function musicBtn() {
