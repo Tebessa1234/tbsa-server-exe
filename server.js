@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.10', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.12.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -529,11 +529,25 @@ let dlSeq = 0;
 const dlRoot = () => cfg.dlDir || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || os.homedir(), 'Videos', 'TBSA-Telechargements') : path.join(os.homedir(), 'TBSA-Telechargements'));
 const cleanN = x => String(x || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120);
 const pad2 = n => String(Math.max(0, +n || 0)).padStart(2, '0');
+const DLFILE = path.join(DATA, 'downloads.json');
+const mkAfter = j => j.trk ? () => { dropOvFile(j.trk); if (j.trc) OVT[j.trk] = { file: j.file, abs: true, name: cleanN(j.trt) }; else delete OVT[j.trk]; save('trailers.json', TRL); } : null;
+let dlSaveT = 0;
+function dlSave() {   // les téléchargements non terminés survivent à un redémarrage du serveur
+  const n = Date.now(); if (n - dlSaveT < 1500) return; dlSaveT = n;
+  const l = DLJ.filter(j => j.state === 'run' || j.state === 'queue').map(j => ({ id: j.id, kind: j.kind, title: j.title, url: j.url, yt: j.yt, file: j.file, total: j.total, segs: j.segs, trk: j.trk, trc: j.trc, trt: j.trt }));
+  try { fs.writeFileSync(DLFILE, JSON.stringify(l)); } catch {}
+}
+function dlRestore() {
+  let l = []; try { l = JSON.parse(fs.readFileSync(DLFILE, 'utf8')); } catch {}
+  for (const o of l) { if (!o || !o.file || DLJ.some(x => x.file === o.file && x.state !== 'error' && x.state !== 'cancel')) continue; const j = Object.assign({ state: 'queue', got: 0 }, o); j.id = ++dlSeq; j.after = mkAfter(j); DLJ.push(j); }
+  if (l.length) log('Téléchargements repris : ' + l.length);
+  dlPump();
+}
 function dlPublic(j) { return { id: j.id, title: j.title, kind: j.kind, state: j.state, got: j.got || 0, total: j.total || 0, pct: j.pct || 0, speed: j.speed || 0, file: j.file, err: j.err || '' }; }
 function dlPump() {
-  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlPump(); }); }
+  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlSaveT = 0; dlSave(); dlPump(); }); }
 }
-function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); DLJ.push(j); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
+function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); j.after = mkAfter(j); DLJ.push(j); dlSaveT = 0; dlSave(); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
 const DL_UA = 'VLC/3.0.20 LibVLC/3.0.20';
 function httpGet(url, headers, hops) {
   hops = hops || 0;
@@ -561,35 +575,37 @@ async function dlHttp(j, url) {
     { const { r, rq } = await httpGet(url, { Range: 'bytes=0-0' }); const cr = String(r.headers['content-range'] || '').match(/\/(\d+)$/);
       if (r.statusCode === 206 && cr) { total = +cr[1]; ranged = true; } else if (r.statusCode === 200) { total = +r.headers['content-length'] || 0; } else { r.resume(); rq.destroy(); throw new Error('Le serveur a répondu ' + r.statusCode); }
       r.resume(); rq.destroy(); }
-    j.total = total; j.t0 = Date.now(); fd = fs.openSync(part, 'w'); if (total) { try { fs.ftruncateSync(fd, total); } catch {} }
-    let last = 0, lastT = Date.now(); timer = setInterval(() => { const n = Date.now(), b = j.got; j.speed = (b - last) / ((n - lastT) / 1000); last = b; lastT = n; if (total) j.pct = Math.min(99, Math.floor(b / total * 100)); }, 1000);
-    // 2) un « segment » = une plage d'octets, relancée automatiquement jusqu'à la fin
-    const seg = async (start, end) => {      // end inclus ; end = Infinity si taille inconnue
-      let pos = start, bad = 0;
-      while (live() && pos <= end) {
+    const N = ranged && total > 8e6 ? Math.max(1, Math.min(16, +cfg.dlParts || 6)) : 1;
+    const resume = ranged && total && j.total === total && Array.isArray(j.segs) && j.segs.length && fs.existsSync(part) && fs.statSync(part).size === total;
+    j.total = total; j.t0 = Date.now(); fd = fs.openSync(part, resume ? 'r+' : 'w'); if (total && !resume) { try { fs.ftruncateSync(fd, total); } catch {} }
+    let segs;
+    if (resume) segs = j.segs; else if (N === 1) segs = [{ start: 0, end: total ? total - 1 : Infinity, pos: 0 }]; else { const sz = Math.ceil(total / N); segs = Array.from({ length: N }, (_, n) => ({ start: n * sz, end: Math.min(total - 1, (n + 1) * sz - 1), pos: n * sz })); }
+    j.segs = segs; j.got = segs.reduce((a, g) => a + (g.pos - g.start), 0);
+    let last = j.got, lastT = Date.now(); timer = setInterval(() => { const n = Date.now(), b = j.got; j.speed = (b - last) / ((n - lastT) / 1000); last = b; lastT = n; if (total) j.pct = Math.min(99, Math.floor(b / total * 100)); dlSave(); }, 1000);
+    const seg = async g => {
+      let bad = 0;
+      while (live() && g.pos <= g.end) {
         try {
-          const { r, rq } = await httpGet(url, ranged || pos > 0 ? { Range: 'bytes=' + pos + '-' + (isFinite(end) ? end : '') } : {});
-          if (!(r.statusCode === 206 || (r.statusCode === 200 && pos === 0))) { r.resume(); rq.destroy(); throw new Error('Réponse ' + r.statusCode); }
-          reqs.add(rq); const before = pos;
+          const { r, rq } = await httpGet(url, ranged || g.pos > 0 ? { Range: 'bytes=' + g.pos + '-' + (isFinite(g.end) ? g.end : '') } : {});
+          if (!(r.statusCode === 206 || (r.statusCode === 200 && g.pos === 0))) { r.resume(); rq.destroy(); throw new Error('Réponse ' + r.statusCode); }
+          reqs.add(rq); const before = g.pos;
           await new Promise((res, rej) => {
-            r.on('data', c => { if (!live()) return; let len = c.length; if (isFinite(end) && pos + len > end + 1) len = end + 1 - pos; fs.writeSync(fd, c, 0, len, pos); pos += len; j.got += len; });
+            r.on('data', c => { if (!live()) return; let len = c.length; if (isFinite(g.end) && g.pos + len > g.end + 1) len = g.end + 1 - g.pos; fs.writeSync(fd, c, 0, len, g.pos); g.pos += len; j.got += len; });
             r.on('end', res); r.on('error', rej); r.on('aborted', () => rej(new Error('Connexion interrompue'))); r.on('close', () => { if (!r.complete) rej(new Error('Connexion interrompue')); });
           });
-          reqs.delete(rq); if (pos > before) bad = 0;
-          if (!isFinite(end)) { end = pos - 1; break; }
+          reqs.delete(rq); if (g.pos > before) bad = 0;
+          if (!isFinite(g.end)) { g.end = g.pos - 1; break; }
         } catch (e) {
           if (!live()) return; bad++; if (bad > 40) throw e;
-          if (!ranged && pos > 0) { j.got -= pos - start; pos = start; }     // pas de reprise possible : on repart du début
+          if (!ranged && g.pos > g.start) { j.got -= g.pos - g.start; g.pos = g.start; }
           await sleep(Math.min(500 * bad, 5000));
         }
       }
     };
-    const N = ranged && total > 8e6 ? Math.max(1, Math.min(16, +cfg.dlParts || 6)) : 1;
-    if (N === 1) await seg(0, total ? total - 1 : Infinity);
-    else { const sz = Math.ceil(total / N); await Promise.all(Array.from({ length: N }, (_, n) => seg(n * sz, Math.min(total - 1, (n + 1) * sz - 1)))); }
+    await Promise.all(segs.map(seg));
     if (!live()) throw new Error('Annulé');
     if (total && j.got < total) throw new Error('Téléchargement incomplet');
-    cleanup(); fs.renameSync(part, j.file); j.state = 'done'; j.pct = 100; j.speed = 0; if (j.after) j.after(); dlPump();
+    cleanup(); fs.renameSync(part, j.file); j.state = 'done'; j.pct = 100; j.speed = 0; j.segs = null; if (j.after) j.after(); dlSaveT = 0; dlSave(); dlPump();
   } catch (e) { cleanup(); try { fs.unlinkSync(part); } catch {} throw e; }
 }
 /* yt-dlp : cherché à côté du programme / dans les données / dans le PATH ; téléchargé automatiquement au besoin */
@@ -624,6 +640,7 @@ async function dlYt(j) {
     c.on('close', code => { if (j.state !== 'run') return resolve(); if (code !== 0) return reject(new Error((err.split('\n').filter(Boolean).pop() || 'yt-dlp a échoué').slice(0, 200))); const real = [base + '.mp4', base + '.mkv', base + '.webm'].find(x => fs.existsSync(x)); if (!real) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} return reject(new Error('Fichier introuvable après le téléchargement')); } const dest = j.file.replace(/\.mp4$/i, path.extname(real)); try { try { fs.renameSync(real, dest); } catch { fs.copyFileSync(real, dest); fs.unlinkSync(real); } } catch (e) { return reject(new Error('Déplacement impossible : ' + e.message)); } try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} j.file = dest; j.state = 'done'; j.pct = 100; if (j.after) j.after(); dlPump(); resolve(); });
   });
 }
+setTimeout(dlRestore, 4000);
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -843,11 +860,11 @@ SRV = http.createServer(async (req, res) => {
         const i = itemFor(me, +b.id), y = ytId(b.yt); if (!i || !y) return J(req, res, { error: 'Bande-annonce invalide' }, 400);
         let dir = path.dirname(i.file), base = path.basename(i.file, path.extname(i.file)), fn;
         if (i.type === 'shows') { const par = path.dirname(dir); if (par.length > i.root.length && /season|saison|^s\d+|specials?/i.test(path.basename(dir))) dir = par; fn = 'trailer.mp4'; } else fn = base + '-trailer.mp4';
-        const k = mkey(i), tt = i.type === 'shows' ? (i.show || base) : (i.title || base), custom = !!cfg.dlTrailers; if (custom) fn = cleanN(tt) + '-trailer.mp4'; const job = dlAdd({ kind: 'bande-annonce', title: 'Bande-annonce : ' + tt, yt: y, file: path.join(custom ? cfg.dlTrailers : dir, fn) }); job.after = () => { dropOvFile(k); if (custom) OVT[k] = { file: job.file, abs: true, name: cleanN(tt) }; else delete OVT[k]; save('trailers.json', TRL); }; made.push(job);
+        const k = mkey(i), tt = i.type === 'shows' ? (i.show || base) : (i.title || base), custom = !!cfg.dlTrailers; if (custom) fn = cleanN(tt) + '-trailer.mp4'; made.push(dlAdd({ kind: 'bande-annonce', title: 'Bande-annonce : ' + tt, yt: y, file: path.join(custom ? cfg.dlTrailers : dir, fn), trk: k, trc: custom, trt: tt }));
       } else return J(req, res, { error: 'Type inconnu' }, 400);
       return ok({ n: made.length, dir: root });
     }
-    if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue')) { const was = j.state; j.state = 'cancel'; try { if (j.reqs) for (const q of j.reqs) q.destroy(); if (j.proc) j.proc.kill(); } catch {} if (was === 'run') dlPump(); } return ok(); }
+    if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue')) { const was = j.state; j.state = 'cancel'; dlSaveT = 0; try { if (j.reqs) for (const q of j.reqs) q.destroy(); if (j.proc) j.proc.kill(); } catch {} dlSave(); if (was === 'run') dlPump(); } return ok(); }
     if (p === '/api/dl-clear' && POST) { if (!need()) return; for (let n = DLJ.length - 1; n >= 0; n--) if (!['run', 'queue'].includes(DLJ[n].state)) DLJ.splice(n, 1); return ok(); }
     if (p === '/api/dl-config' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req));

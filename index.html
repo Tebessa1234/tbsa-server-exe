@@ -501,8 +501,13 @@ function mMovie(i) { return { kind: 'movie', id: i.id, ref: i, t: i.name || i.ti
 function mShow(s) { var un = s.eps.filter(function (e) { return !isW(e.k); }).length; return { kind: 'show', id: s.id, ref: s, t: s.name, y: s.year, poster: s.poster, bd: s.bd, rating: s.rating, genres: s.genres, tags: s.tags, added: s.added, libId: s.libId, w: un === 0, pct: 0, unseen: un, href: '#/show/' + encodeURIComponent(s.key), cert: s.cert, type: 'shows', n: s.eps.length }; }
 var byRelease = function (a, b) { return (a.year || 9999) - (b.year || 9999) || a.title.localeCompare(b.title); };
 function sagaMin() { var n = S.cfg ? S.cfg.sagaMin : 2; return n == null ? 2 : +n; }
-function azKey(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[^a-z0-9]+/, '').replace(/^(?:(?:le|la|les|un|une|the|a|an)\s+|l')/, ''); }
-function azCmp(a, b) { return azKey(a).localeCompare(azKey(b), 'fr', { numeric: true }); }
+var AZM = {};
+function azKey(s) { s = String(s || ''); var h = AZM[s]; if (h !== undefined) return h; return (AZM[s] = azKey0(s)); }
+function azKey0(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[^a-z0-9]+/, '').replace(/^(?:(?:le|la|les|un|une|the|a|an)\s+|l')/, ''); }
+var AZC = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('fr', { numeric: true }) : null;
+function azCmp(a, b) { var x = azKey(a), y = azKey(b); return AZC ? AZC.compare(x, y) : (x < y ? -1 : x > y ? 1 : 0); }
+/* tri rapide pour les très longues listes (catalogues IPTV) : clé calculée une seule fois par élément */
+function azSort(arr, get) { var k = arr.map(function (v, i) { return { k: azKey(get(v)), v: v }; }); k.sort(function (a, b) { return AZC ? AZC.compare(a.k, b.k) : (a.k < b.k ? -1 : a.k > b.k ? 1 : 0); }); return k.map(function (o) { return o.v; }); }
 function sagaItems(id) { return S.lib.filter(function (i) { return i.type === 'movies' && i.col && i.col.id === id; }).sort(byRelease); }
 function mSaga(id, items) {
   var f = items[0], col = f.col, g = {}, tg = {}, rt = 0, rn = 0, added = 0, un = 0;
@@ -1646,7 +1651,7 @@ ROUTES.m3u = function (v) {
 function xtPosters(key, title, catAct, listAct, mk) {
   return async function (v) {
     var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: 240 }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
-    try { var r = await Promise.all([xt(catAct), xt(listAct)]); cats = r[0]; list = r[1]; if (!Array.isArray(cats) || !Array.isArray(list)) throw 0; cats = cats.slice().sort(function (a, b) { return azCmp(a.category_name, b.category_name); }); list = list.slice().sort(function (a, b) { return azCmp(a.name, b.name); }); } catch (e) { v.append(el('div', 'emp', 'Impossible de charger le catalogue IPTV. Vérifiez les Réglages.')); return; }
+    try { var r = await Promise.all([xt(catAct), xt(listAct)]); cats = r[0]; list = r[1]; if (!Array.isArray(cats) || !Array.isArray(list)) throw 0; cats = azSort(cats, function (x) { return x.category_name; }); list = azSort(list, function (x) { return x.name; }); } catch (e) { v.append(el('div', 'emp', 'Impossible de charger le catalogue IPTV. Vérifiez les Réglages.')); return; }
     v.append(pillsBar([['', 'Toutes']].concat(cats.map(function (c) { return [c.category_id, c.category_name]; })), F.cat, function (c) { F.cat = c; F.max = 240; ROUTES[key](v); }));
     var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '240px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
     var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += 240; draw(); }; m.append(b); box.append(m); } };
