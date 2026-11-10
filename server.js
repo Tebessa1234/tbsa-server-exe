@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.1', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.5', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -783,7 +783,7 @@ SRV = http.createServer(async (req, res) => {
     if (p === '/api/library') return J(req, res, index.filter(i => allowedLib(me, cfg.libraries[i.libId])).map(i => itemOut(i, S)));
     if (p.startsWith('/api/trailer/')) { const i = itemFor(me, +p.slice(13)); if (!i) return J(req, res, {}, 404); const ov = OVT[mkey(i)]; if (ov) { if (ov.file) { if (ovFile(i)) return J(req, res, { local: true, manual: true, name: ov.name || '', ready: await trReady(ovFile(i)) || !!(compatPath(ovFile(i)) && fs.existsSync(compatPath(ovFile(i)))) }); } else return J(req, res, ov.none ? { yt: '', none: true, tmdb: !!cfg.tmdb } : ov.direct ? { yt: '', direct: ov.direct, name: ov.name || '', manual: true } : { yt: ov.yt, name: ov.name || '', manual: true, tmdb: !!cfg.tmdb }); } const lt = localTrailer(i); if (lt) return J(req, res, { local: true, ready: await trReady(lt) || !!(compatPath(lt) && fs.existsSync(compatPath(lt))) }); const t = await trailerFor(i); return J(req, res, { yt: t.yt || '', name: t.name || '', tmdb: !!cfg.tmdb }); }
 
-    if (p === '/api/dl-list') { if (!need()) return; return J(req, res, { dir: dlRoot(), jobs: DLJ.map(dlPublic).reverse() }); }
+    if (p === '/api/dl-list') { if (!need()) return; return J(req, res, { dir: dlRoot(), films: cfg.dlFilms || path.join(dlRoot(), 'Films'), series: cfg.dlSeries || path.join(dlRoot(), 'Series'), trailers: cfg.dlTrailers || '', jobs: DLJ.map(dlPublic).reverse() }); }
     if (p === '/api/dl-start' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req)), root = dlRoot(), made = [], id = /^[\w.-]{1,40}$/;
       if (b.type === 'movie' || b.type === 'episodes') {
@@ -792,22 +792,31 @@ SRV = http.createServer(async (req, res) => {
         if (b.type === 'movie') {
           if (!id.test(String(b.sid)) || !id.test(String(b.ext || 'mp4'))) return J(req, res, { error: 'Film invalide' }, 400);
           const nm = cleanN(b.name) || 'Film ' + b.sid, yr = /^\d{4}$/.test(String(b.year || '')) ? ' (' + b.year + ')' : '', fn = nm + yr, ext = String(b.ext || 'mp4').toLowerCase();
-          made.push(dlAdd({ kind: 'film', title: fn, url: mk('movie', b.sid, ext), file: path.join(root, 'Films', fn, fn + '.' + ext) }));
+          made.push(dlAdd({ kind: 'film', title: fn, url: mk('movie', b.sid, ext), file: path.join(cfg.dlFilms || path.join(root, 'Films'), fn, fn + '.' + ext) }));
         } else {
           const show = cleanN(b.show) || 'Série'; const list = Array.isArray(b.items) ? b.items.slice(0, 200) : [];
-          for (const e of list) { if (!id.test(String(e.sid)) || !id.test(String(e.ext || 'mp4'))) continue; const ext = String(e.ext || 'mp4').toLowerCase(), se = +e.season || 1, ep = +e.episode || 0, fn = show + ' - S' + pad2(se) + 'E' + pad2(ep); made.push(dlAdd({ kind: 'épisode', title: fn, url: mk('series', e.sid, ext), file: path.join(root, 'Series', show, 'Season ' + pad2(se), fn + '.' + ext) })); }
+          for (const e of list) { if (!id.test(String(e.sid)) || !id.test(String(e.ext || 'mp4'))) continue; const ext = String(e.ext || 'mp4').toLowerCase(), se = +e.season || 1, ep = +e.episode || 0, fn = show + ' - S' + pad2(se) + 'E' + pad2(ep); made.push(dlAdd({ kind: 'épisode', title: fn, url: mk('series', e.sid, ext), file: path.join(cfg.dlSeries || path.join(root, 'Series'), show, 'Season ' + pad2(se), fn + '.' + ext) })); }
         }
       } else if (b.type === 'trailer') {
         const i = itemFor(me, +b.id), y = ytId(b.yt); if (!i || !y) return J(req, res, { error: 'Bande-annonce invalide' }, 400);
         let dir = path.dirname(i.file), base = path.basename(i.file, path.extname(i.file)), fn;
         if (i.type === 'shows') { const par = path.dirname(dir); if (par.length > i.root.length && /season|saison|^s\d+|specials?/i.test(path.basename(dir))) dir = par; fn = 'trailer.mp4'; } else fn = base + '-trailer.mp4';
-        const k = mkey(i); made.push(dlAdd({ kind: 'bande-annonce', title: 'Bande-annonce : ' + (i.title || i.name || base), yt: y, file: path.join(dir, fn), after: () => { dropOvFile(k); delete OVT[k]; save('trailers.json', TRL); } }));
+        const k = mkey(i), tt = i.type === 'shows' ? (i.show || base) : (i.title || base), custom = !!cfg.dlTrailers; if (custom) fn = cleanN(tt) + '-trailer.mp4'; const job = dlAdd({ kind: 'bande-annonce', title: 'Bande-annonce : ' + tt, yt: y, file: path.join(custom ? cfg.dlTrailers : dir, fn) }); job.after = () => { dropOvFile(k); if (custom) OVT[k] = { file: job.file, abs: true, name: cleanN(tt) }; else delete OVT[k]; save('trailers.json', TRL); }; made.push(job);
       } else return J(req, res, { error: 'Type inconnu' }, 400);
       return ok({ n: made.length, dir: root });
     }
     if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue')) { const was = j.state; j.state = 'cancel'; try { if (j.req) j.req.destroy(); if (j.proc) j.proc.kill(); } catch {} if (was === 'run') dlPump(); } return ok(); }
     if (p === '/api/dl-clear' && POST) { if (!need()) return; for (let n = DLJ.length - 1; n >= 0; n--) if (!['run', 'queue'].includes(DLJ[n].state)) DLJ.splice(n, 1); return ok(); }
-    if (p === '/api/dl-config' && POST) { if (!need()) return; const b = JSON.parse(await body(req)), d = normPath(String(b.dir || '')); if (b.dir && !d) return J(req, res, { error: 'Dossier invalide' }, 400); if (d) { try { fs.mkdirSync(d, { recursive: true }); } catch (e) { return J(req, res, { error: 'Dossier inaccessible : ' + e.message }, 400); } cfg.dlDir = d; } else delete cfg.dlDir; save('config.json', cfg); return ok({ dir: dlRoot() }); }
+    if (p === '/api/dl-config' && POST) {
+      if (!need()) return; const b = JSON.parse(await body(req));
+      for (const [f, key] of [['dir', 'dlDir'], ['films', 'dlFilms'], ['series', 'dlSeries'], ['trailers', 'dlTrailers']]) {
+        if (!(f in b)) continue; const d = normPath(String(b[f] || ''));
+        if (!d) { delete cfg[key]; continue; }
+        try { fs.mkdirSync(d, { recursive: true }); } catch (e) { return J(req, res, { error: 'Dossier inaccessible : ' + e.message }, 400); } cfg[key] = path.resolve(d);
+      }
+      save('config.json', cfg); return ok({ dir: dlRoot() });
+    }
+    if (p === '/api/mkdir' && POST) { if (!need()) return; const b = JSON.parse(await body(req)), par = normPath(b.path), nm = cleanN(b.name); if (!par || !nm) return J(req, res, { error: 'Nom de dossier invalide' }, 400); const d = path.join(par, nm); try { fs.mkdirSync(d, { recursive: true }); } catch (e) { return J(req, res, { error: 'Création impossible : ' + e.message }, 400); } return ok({ path: d }); }
     if (p.startsWith('/api/trailer-list/')) { if (!need()) return; const i = itemFor(me, +p.slice(18)); if (!i) return J(req, res, [], 404); return J(req, res, await trailerList(i)); }
     if (p === '/api/trailer-set' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req)), i = itemFor(me, +b.id); if (!i) return J(req, res, { error: 'Introuvable' }, 404); const k = mkey(i);

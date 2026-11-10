@@ -797,7 +797,7 @@ function idleRoute(n) { n = n || 0; if (Date.now() - lastKeyT < 2500 && n < 8) r
 var isBackKey = function (e) { return e.key === 'BrowserBack' || e.key === 'XF86Back' || e.keyCode === 461 || e.keyCode === 10009 || e.key === 'GoBack'; };
 function goBack() {
   if (PL.open) { playerBack(); return true; }
-  if (S.ovs.length) { S.ovs[S.ovs.length - 1].close(); return true; }
+  if (S.ovs.length) { var top = S.ovs[S.ovs.length - 1]; if (top.onBack && top.onBack()) return true; top.close(); return true; }
   var h = location.hash || '#/home'; if (h === '#/home' || h === '#/' || h === '') return false;
   if (S.nav > 1) history.back(); else go('#/home'); return true;
 }
@@ -931,26 +931,27 @@ function pickVideo(itemId) {
     var o = openOv('<div class="dh2"><span>Choisir une vidéo sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div style="padding:6px 16px" class="msg cur"></div><div class="list" style="flex:1;overflow:auto;padding:4px 16px 12px"></div>');
     o.noBg = true; var list = $('.list', o.dlg), cur = $('.cur', o.dlg), done = false, close0 = o.close, fin = function (v) { if (done) return; done = true; close0(); resolve(v); }; o.close = function () { fin(null); }; $('[data-a=x]', o.dlg).onclick = function () { fin(null); };
     var row = function (t, fn, cls) { var a = el('div', 'epr', esc(t)); a.tabIndex = 0; a.style.cssText = 'padding:10px 14px;margin-bottom:6px' + (cls ? ';border-left:4px solid #e50914' : ''); a.onclick = fn; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; list.append(a); return a; };
-    async function nav(p) {
-      list.innerHTML = '<div class="spin"></div>'; var r; try { r = await api('/api/browse?files=1&path=' + encodeURIComponent(p || '') + (!p && itemId != null ? '&item=' + itemId : '')); } catch (e) { list.innerHTML = '<p class="msg">' + esc(e.message) + '</p>'; return; }
-      cur.textContent = r.path || 'Ordinateur : choisissez un disque'; list.innerHTML = '';
-      if (r.parent !== null) row('‹ Dossier parent', function () { nav(r.parent); });
+    async function nav(p, first) {
+      list.innerHTML = '<div class="spin"></div>'; var r; try { r = await api('/api/browse?files=1&path=' + encodeURIComponent(p || '') + (first && itemId != null ? '&item=' + itemId : '')); } catch (e) { list.innerHTML = '<p class="msg">' + esc(e.message) + '</p>'; return; }
+      cur.textContent = r.path || 'Ordinateur : choisissez un disque'; list.innerHTML = ''; o.onBack = r.path ? function () { nav(r.parent === null || r.parent === undefined ? '' : r.parent); return true; } : null;
+      if (r.path) row('💽 Tous les disques', function () { nav(''); });
+      if (r.parent !== null && r.parent !== '') row('‹ Dossier parent', function () { nav(r.parent); });
       (r.files || []).forEach(function (x) { row('🎞 ' + x.name, function () { fin(x.path); }, 1); });
       r.dirs.forEach(function (x) { row('📁 ' + x.name, function () { nav(x.path); }); });
       if (r.places && r.places.length) { list.append(el('h3', '', 'Raccourcis')); r.places.forEach(function (x) { row(x.name, function () { nav(x.path); }); }); }
       var f = $('.epr', list); if (f) try { f.focus(); } catch (e) {}
     }
-    nav('');
+    nav('', true);
   });
 }
 function dlDlg() {
-  var o = openOv('<div class="dh2"><span>Téléchargements sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg" data-r="dir"></p><div data-r="jobs"></div></div></div><div class="df"><button class="btn ghost" data-a="clr">Effacer la liste</button><span></span><button class="btn red" data-a="s">Fermer</button></div>');
+  var o = openOv('<div class="dh2"><span>Téléchargements sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><div data-r="dir"></div><h3 style="margin:12px 0 6px">Téléchargements</h3><div data-r="jobs"></div></div></div><div class="df"><button class="btn ghost" data-a="clr">Effacer la liste</button><span></span><button class="btn red" data-a="s">Fermer</button></div>');
   var jobs = $('[data-r=jobs]', o.dlg), dir = $('[data-r=dir]', o.dlg), alive = true, c0 = o.close; o.close = function () { alive = false; c0(); };
   $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
   $('[data-a=clr]', o.dlg).onclick = async function () { await post('/api/dl-clear', {}); tick(); };
   async function tick() {
     if (!alive) return; var r; try { r = await api('/api/dl-list'); } catch (e) { return; }
-    dir.innerHTML = 'Dossier de destination sur le PC : <b>' + esc(r.dir) + '</b>'; var ST = { queue: 'En attente', run: 'En cours', done: 'Terminé ✓', error: 'Erreur', cancel: 'Annulé' };
+    if (!dir.dataset.k || dir.dataset.k !== JSON.stringify([r.dir, r.films, r.series, r.trailers])) { dir.dataset.k = JSON.stringify([r.dir, r.films, r.series, r.trailers]); dir.innerHTML = ''; [['Dossier principal', r.dir, 'dir'], ['Films', r.films, 'films'], ['Séries', r.series, 'series'], ['Bandes-annonces', r.trailers || 'Dans le dossier du film (automatique)', 'trailers']].forEach(function (x) { var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + x[0] + '</h3><div class="msg" style="font-size:13px;word-break:break-all">' + esc(x[1]) + '</div></div>'); d.style.cssText = 'padding:8px 14px;margin-bottom:6px'; d.tabIndex = 0; d.onclick = async function () { var f = await pickFolder(x[1].indexOf('automatique') > 0 ? '' : x[1]); if (f === null) return; var b = {}; b[x[2]] = f; try { await post('/api/dl-config', b); toast('Dossier enregistré'); } catch (e) { toast(e.message); } tick(); }; d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } }; dir.append(d); }); } var ST = { queue: 'En attente', run: 'En cours', done: 'Terminé ✓', error: 'Erreur', cancel: 'Annulé' };
     jobs.innerHTML = r.jobs.length ? '' : '<p class="msg">Aucun téléchargement.</p>';
     r.jobs.forEach(function (j) {
       var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + esc(j.title) + '</h3><div class="msg" style="font-size:13px">' + ST[j.state] + (j.state === 'run' ? ' · ' + (j.total ? j.pct + ' % · ' + fmtMB(j.got) + ' / ' + fmtMB(j.total) : j.kind === 'bande-annonce' ? j.pct + ' %' : fmtMB(j.got)) + (j.speed ? ' · ' + (j.speed / 1e6).toFixed(1) + ' Mo/s' : '') : '') + (j.err ? ' : ' + esc(j.err) : '') + '</div>' + (j.state === 'run' ? '<div class="prog" style="position:static;margin-top:6px"><i style="width:' + j.pct + '%"></i></div>' : '') + '</div>');
@@ -962,19 +963,32 @@ function dlDlg() {
   tick();
 }
 async function dlStart(body) { try { var r = await post('/api/dl-start', body); toast(r.n + ' téléchargement(s) lancé(s) vers ' + r.dir); dlDlg(); } catch (e) { toast(e.message); } }
+
+async function destRow(key, host) {
+  var cfgd = {}; try { cfgd = await api('/api/dl-list'); } catch (e) {}
+  var d = el('div', 'epr'); d.tabIndex = 0; d.style.cssText = 'padding:10px 14px;margin:10px 0;border-left:4px solid #e50914';
+  var show = function (v) { d.innerHTML = '<div class="tx" style="width:100%"><h3>Dossier d’enregistrement sur le PC</h3><div class="msg" style="word-break:break-all">' + esc(v || 'Dans le dossier du film (automatique)') + '</div><div class="msg" style="font-size:12px">Appuyer sur OK pour choisir un autre dossier (tous les disques)</div></div>'; };
+  show(cfgd[key]);
+  d.onclick = async function () { var f = await pickFolder(cfgd[key] || ''); if (f === null) return; var b = {}; b[key] = f; try { await post('/api/dl-config', b); cfgd[key] = f; show(f); } catch (e) { toast(e.message); } };
+  d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } };
+  host.append(d); return d;
+}
 function dlMovieDlg(id, ext, name, year) {
   var o = openOv('<div class="dh2"><span>Télécharger sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg">Le fichier sera enregistré sur le PC du serveur sous « Films / Nom (Année) / Nom (Année).' + esc(ext) + ' ».</p><label class="fld">Nom du film</label><input id="dn" value="' + esc(name) + '"><label class="fld">Année</label><input id="dy" value="' + esc(year || '') + '" inputmode="numeric"></div></div><div class="df"><button class="btn ghost" data-a="v">Voir les téléchargements</button><span></span><button class="btn red" data-a="go">Télécharger</button></div>');
   $('[data-a=x]', o.dlg).onclick = function () { o.close(); }; $('[data-a=v]', o.dlg).onclick = function () { o.close(); dlDlg(); };
   $('[data-a=go]', o.dlg).onclick = function () { var n = $('#dn', o.dlg).value, y = $('#dy', o.dlg).value; o.close(); dlStart({ type: 'movie', sid: id, ext: ext, name: n, year: y }); };
-  setTimeout(function () { try { $('[data-a=go]', o.dlg).focus(); } catch (e) {} }, 100);
+  destRow('films', $('.dmain', o.dlg));
+  setTimeout(function () { try { $('#dn', o.dlg).focus(); } catch (e) {} }, 100);
 }
 function dlEpisodesDlg(show, eps, label) {
   var o = openOv('<div class="dh2"><span>Télécharger sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg">' + esc(label) + ' — enregistré sous « Series / Nom / Season XX / Nom - SXXEXX ».</p><label class="fld">Nom de la série</label><input id="dn" value="' + esc(show) + '"><div class="tlist" style="margin-top:10px"></div></div></div><div class="df"><button class="btn ghost" data-a="v">Voir les téléchargements</button><span></span><button class="btn red" data-a="go">Télécharger (' + eps.length + ')</button></div>');
   var box = $('.tlist', o.dlg); eps.forEach(function (e) { box.append(el('p', 'msg', 'S' + String(e.season).padStart(2, '0') + 'E' + String(e.episode).padStart(2, '0') + (e.title ? ' — ' + esc(e.title) : ''))); });
   $('[data-a=x]', o.dlg).onclick = function () { o.close(); }; $('[data-a=v]', o.dlg).onclick = function () { o.close(); dlDlg(); };
   $('[data-a=go]', o.dlg).onclick = function () { var n = $('#dn', o.dlg).value; o.close(); dlStart({ type: 'episodes', show: n, items: eps }); };
-  setTimeout(function () { try { $('[data-a=go]', o.dlg).focus(); } catch (e) {} }, 100);
+  destRow('series', $('.dmain', o.dlg));
+  setTimeout(function () { try { $('#dn', o.dlg).focus(); } catch (e) {} }, 100);
 }
+function dlTrailerAsk(m, key, name) { var o2 = openOv('<div class="dh2"><span>Télécharger la bande-annonce sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><p class="msg">' + esc(name || key) + '</p></div></div><div class="df"><span></span><button class="btn red" data-a="go">Télécharger</button></div>'); $('[data-a=x]', o2.dlg).onclick = function () { o2.close(); }; destRow('trailers', $('.dmain', o2.dlg)); $('[data-a=go]', o2.dlg).onclick = function () { o2.close(); dlStart({ type: 'trailer', id: m.id, yt: key }); }; }
 function trailerDlg(m) {
   var o = openOv('<div class="dh2"><span>Bande-annonce : ' + esc(m.t || m.name || '') + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"></div></div><div class="df"><button class="btn ghost" data-a="reset">Remettre en automatique</button><span></span><button class="btn red" data-a="s">Terminé</button></div>');
   var main = $('.dmain', o.dlg), cur = null, list = null;
@@ -987,6 +1001,7 @@ function trailerDlg(m) {
       '<h3 style="margin:16px 0 6px">Vidéos proposées' + (list.length ? '' : ' (aucune : clé TMDB absente ou rien trouvé)') + '</h3><div class="tlist"></div><div class="acts" style="margin-top:14px"><button class="btn ghost" data-a="no">Aucune bande-annonce pour ce titre</button></div>';
     $('[data-a=ap]', main).onclick = function () { var u = $('#ty', main).value.trim(); if (!u) { toast('Collez un lien YouTube'); return; } send({ url: u }, 'Bande-annonce enregistrée'); };
     $('[data-a=no]', main).onclick = function () { send({ none: true }, 'Bande-annonce désactivée'); };
+    if (cur.yt) { var cb = el('button', 'btn sm', 'Télécharger la bande-annonce actuelle sur le PC'); cb.style.margin = '8px 0'; cb.onclick = function () { dlTrailerAsk(m, cur.yt, cur.name); }; main.insertBefore(cb, main.children[1]); }
     $('[data-a=pf]', main).onclick = async function () { var f = await pickVideo(m.id); if (f) send({ path: f }, 'Bande-annonce choisie'); };
     $('[data-a=dls]', main).onclick = function () { dlDlg(); };
     var fi = $('[data-r=fi]', main), up = $('[data-r=up]', main); $('[data-a=pc]', main).onclick = function () { fi.click(); };
@@ -996,7 +1011,7 @@ function trailerDlg(m) {
       x.onload = function () { if (x.status === 200) { toast('Bande-annonce enregistrée'); draw(); } else { var m2 = ''; try { m2 = JSON.parse(x.responseText).error; } catch (e) {} up.textContent = ''; toast(m2 || 'Envoi impossible'); } };
       x.onerror = function () { up.textContent = ''; toast('Envoi interrompu'); }; up.textContent = 'Envoi… 0 %'; x.send(f);
     };
-    var box = $('.tlist', main); list.forEach(function (x) { var b = el('button', 'btn ghost', esc(x.name || x.key) + ' <small style="opacity:.7">· ' + esc(x.type) + (x.lang ? ' · ' + esc(x.lang) : '') + '</small>'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px'; b.onclick = function () { send({ url: x.key, name: x.name }, 'Bande-annonce enregistrée'); }; var w = el('div'); w.style.cssText = 'display:flex;gap:6px;margin:0 0 6px'; b.style.margin = '0'; b.style.flex = '1'; var dl = el('button', 'btn sm', 'Télécharger sur le PC'); dl.onclick = async function () { try { var r = await post('/api/dl-start', { type: 'trailer', id: m.id, yt: x.key }); toast('Téléchargement lancé vers ' + r.dir); dlDlg(); } catch (e) { toast(e.message); } }; w.append(b, dl); box.append(w); });
+    var box = $('.tlist', main); list.forEach(function (x) { var b = el('button', 'btn ghost', esc(x.name || x.key) + ' <small style="opacity:.7">· ' + esc(x.type) + (x.lang ? ' · ' + esc(x.lang) : '') + '</small>'); b.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px'; b.onclick = function () { send({ url: x.key, name: x.name }, 'Bande-annonce enregistrée'); }; var w = el('div'); w.style.cssText = 'display:flex;gap:6px;margin:0 0 6px'; b.style.margin = '0'; b.style.flex = '1'; var dl = el('button', 'btn sm', 'Télécharger sur le PC'); dl.onclick = function () { dlTrailerAsk(m, x.key, x.name); }; w.append(b, dl); box.append(w); });
   };
   $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
   $('[data-a=reset]', o.dlg).onclick = function () { send({ reset: true }, 'Remise en automatique'); };
@@ -1678,14 +1693,15 @@ var LANGOPT = [['fr-FR', 'Français'], ['en-US', 'English'], ['es-ES', 'Español
 var typeLabel = function (t) { return (TYPES.filter(function (x) { return x[0] === t; })[0] || [])[1] || t; };
 function pickFolder(start) {
   return new Promise(function (resolve) {
-    var o = openOv('<div class="dh2"><span>Choisir un dossier</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div style="padding:12px 16px" class="row2"><input class="pi" placeholder="Saisir ou coller un chemin, ex. D:\\Films"><button class="btn sm" data-a="go">Aller</button><button class="btn sm ghost" data-a="root">Disques</button></div><div class="list" style="flex:1;overflow:auto;padding:4px 16px 12px"></div><div class="df"><span class="msg cur"></span><button class="btn red" data-a="ok">Choisir ce dossier</button></div>');
+    var o = openOv('<div class="dh2"><span>Choisir un dossier</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div style="padding:12px 16px" class="row2"><input class="pi" placeholder="Saisir ou coller un chemin, ex. D:\\Films"><button class="btn sm" data-a="go">Aller</button><button class="btn sm ghost" data-a="root">Disques</button><button class="btn sm ghost" data-a="nf">+ Nouveau dossier</button></div><div class="list" style="flex:1;overflow:auto;padding:4px 16px 12px"></div><div class="df"><span class="msg cur"></span><button class="btn red" data-a="ok">Choisir ce dossier</button></div>');
     o.noBg = true; var list = $('.list', o.dlg), cur = $('.cur', o.dlg), ok = $('[data-a=ok]', o.dlg), pi = $('.pi', o.dlg), here = '', done = false;
     var close0 = o.close, fin = function (v) { if (done) return; done = true; close0(); resolve(v); }; o.close = function () { fin(null); };
     $('[data-a=x]', o.dlg).onclick = function () { fin(null); }; ok.onclick = function () { fin(here); }; $('[data-a=go]', o.dlg).onclick = function () { nav(pi.value); }; $('[data-a=root]', o.dlg).onclick = function () { nav(''); }; pi.onkeydown = function (e) { if (e.key === 'Enter') nav(pi.value); };
+    $('[data-a=nf]', o.dlg).onclick = function () { if (!here) { toast('Ouvrez d’abord un disque'); return; } if ($('.nfr', list)) return; var w = el('div', 'nfr'); w.style.cssText = 'display:flex;gap:6px;margin-bottom:8px'; w.innerHTML = '<input placeholder="Nom du nouveau dossier" style="flex:1"><button class="btn sm red">Créer</button>'; var inp = $('input', w), go = function () { var nm = inp.value.trim(); if (!nm) return; post('/api/mkdir', { path: here, name: nm }).then(function (r) { nav(r.path); }).catch(function (e) { toast(e.message); }); }; $('button', w).onclick = go; inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } }; list.prepend(w); inp.focus(); };
     var row = function (t, p) { var a = el('div', 'epr', esc(t)); a.tabIndex = 0; a.style.padding = '10px 14px'; a.style.marginBottom = '6px'; a.onclick = function () { nav(p); }; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; list.append(a); };
     async function nav(p) {
       list.innerHTML = '<div class="spin"></div>'; var r; try { r = await api('/api/browse?path=' + encodeURIComponent(p)); } catch (e) { list.innerHTML = '<p class="msg">' + esc(e.message) + ' : ' + esc(p) + '</p>'; return; }
-      here = r.path; pi.value = here; cur.textContent = here || 'Ordinateur : choisissez un disque'; ok.disabled = !here; list.innerHTML = '';
+      here = r.path; o.onBack = here ? function () { nav(r.parent === null || r.parent === undefined ? '' : r.parent); return true; } : null; pi.value = here; cur.textContent = here || 'Ordinateur : choisissez un disque'; ok.disabled = !here; list.innerHTML = '';
       if (r.parent !== null) row('‹ Dossier parent', r.parent); r.dirs.forEach(function (x) { row(x.name, x.path); });
       if (r.places && r.places.length) { list.append(el('h3', '', 'Raccourcis')); r.places.forEach(function (x) { row(x.name, x.path); }); } if (!r.dirs.length) list.append(el('p', 'msg', 'Aucun sous-dossier ici : vous pouvez choisir ce dossier.'));
     }
