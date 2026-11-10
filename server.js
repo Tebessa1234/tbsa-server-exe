@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.6', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.11.10', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -140,7 +140,8 @@ const lanUrls = () => Object.values(os.networkInterfaces()).reduce((a, x) => a.c
 const VIDEO = /\.(3g2|3gp|3gpp|amv|asf|avi|dat|divx|dv|evo|f4v|flc|fli|flv|ivf|m1v|m2t|m2ts|m2v|m4v|mjpeg|mjpg|mk3d|mkv|mod|mov|mp4|mpe|mpeg|mpg|mts|mtv|mxf|nsv|nut|ogg|ogv|qt|ra|rm|rmvb|swf|tod|tp|trp|ts|vob|webm|wmv|xvid)$/i;
 const AMBIG = /\.(dat|ogg|ra|mod)$/i;   // extensions qui servent aussi à des fichiers non vidéo : ignorés s'ils sont petits (< 8 Mo)
 const MIME = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo', '.ts': 'video/mp2t', '.m2ts': 'video/mp2t', '.m2t': 'video/mp2t', '.mts': 'video/mp2t', '.tp': 'video/mp2t', '.trp': 'video/mp2t', '.3g2': 'video/3gpp2', '.3gpp': 'video/3gpp', '.qt': 'video/quicktime', '.f4v': 'video/mp4', '.rm': 'application/vnd.rn-realmedia', '.rmvb': 'application/vnd.rn-realmedia-vbr', '.swf': 'application/x-shockwave-flash', '.vob': 'video/mpeg', '.dat': 'video/mpeg', '.m1v': 'video/mpeg', '.m2v': 'video/mpeg', '.mpe': 'video/mpeg', '.asf': 'video/x-ms-asf', '.divx': 'video/divx', '.xvid': 'video/avi', '.mxf': 'application/mxf', '.nut': 'video/x-nut', '.mpg': 'video/mpeg', '.mpeg': 'video/mpeg', '.wmv': 'video/x-ms-wmv', '.flv': 'video/x-flv', '.3gp': 'video/3gpp', '.ogv': 'video/ogg', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.flac': 'audio/flac', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
-let index = [], byK = new Map(), ARTC = new Map(), scanning = false, SCANSTAT = { running: false, last: 0, ms: 0 };
+const FID = load('fileids.json', { n: 0, m: {} });
+let index = [], byId = new Map(), byK = new Map(), ARTC = new Map(), scanning = false, SCANSTAT = { running: false, last: 0, ms: 0 };
 function walk(dir, out = []) {
   let es; try { es = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of es) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p, out); else if (VIDEO.test(e.name)) out.push(p); }
@@ -196,7 +197,7 @@ function parseShowFile(parts, genre, base) {
 function scan() {
   if (scanning) return; scanning = true; SCANSTAT.running = true; const t0 = Date.now();
   try {
-    const old = new Map(index.map(i => [i.file, i.id])); const nx = []; let id = 0; ARTC = new Map();
+    const nx = []; let fidDirty = false; ARTC = new Map();   // identifiants STABLES par fichier : un nouveau fichier ne décale plus les autres fiches
     cfg.libraries.forEach((lib, li) => {
       for (const root of lib.paths) for (const f of walk(root)) {
         let stt; try { stt = fs.statSync(f); } catch { continue; }
@@ -204,7 +205,8 @@ function scan() {
         const base = path.basename(f), parts = path.relative(root, f).split(path.sep);
         if (TRAILER_FILE.test(base.replace(/\.[^.]+$/, '')) || parts.slice(0, -1).some(x => TRAILER_DIR.test(x))) continue;   // bandes-annonces locales : jamais prises pour des films
         const genre = lib.groups === true && parts.length > 1 ? parts[0] : '';
-        const it = { id: id++, libId: li, type: lib.type, lib: lib.name, root, file: f, k: 'f|' + sha(f).slice(0, 16), lang: lib.language || 'fr-FR', genre, title: clean(base.replace(/\.[^.]+$/, '')), added: stt.mtimeMs, size: stt.size };
+        let id = FID.m[f]; if (id == null) { id = FID.n++; FID.m[f] = id; fidDirty = true; }
+        const it = { id, libId: li, type: lib.type, lib: lib.name, root, file: f, k: 'f|' + sha(f).slice(0, 16), lang: lib.language || 'fr-FR', genre, title: clean(base.replace(/\.[^.]+$/, '')), added: stt.mtimeMs, size: stt.size };
         if (lib.type === 'shows') {
           const r = parseShowFile(parts, genre, base);
           it.show = r.show; it.season = r.season; it.ep = r.ep; it.title = r.title; if (r.year) it.syear = r.year;
@@ -220,13 +222,13 @@ function scan() {
     for (const it of nx) if (it.type === 'shows') { const k = it.libId + '|' + normName(it.show); let g = grp.get(k); if (!g) grp.set(k, g = { names: new Map(), year: 0 }); g.names.set(it.show, (g.names.get(it.show) || 0) + 1); if (it.syear) g.year = it.syear; }
     for (const g of grp.values()) { let best = '', n = -1; for (const [nm, c] of g.names) if (c > n || (c === n && nm.length > best.length)) { best = nm; n = c; } g.name = best; }
     for (const it of nx) if (it.type === 'shows') { const g = grp.get(it.libId + '|' + normName(it.show)); it.show = g.name; if (g.year) it.syear = g.year; }
-    index = nx; byK = new Map(nx.map(i => [i.k, i]));
+    index = nx; byId = new Map(nx.map(i => [i.id, i])); byK = new Map(nx.map(i => [i.k, i])); if (fidDirty) save('fileids.json', FID);
     log('Scan : ' + index.length + ' fichiers');
   } finally { scanning = false; SCANSTAT = { running: false, last: Date.now(), ms: Date.now() - t0 }; }
   enrich();
 }
 const allowedLib = (u, l) => !!l && (!u.libs || u.libs.includes(l.uid));
-const itemFor = (u, id) => { const i = index[id]; return i && allowedLib(u, cfg.libraries[i.libId]) ? i : null; };
+const itemFor = (u, id) => { const i = byId.get(id); return i && allowedLib(u, cfg.libraries[i.libId]) ? i : null; };
 
 // Pochettes locales (poster.jpg, folder.jpg, fanart.jpg…)
 function localArt(it, kind) {
@@ -244,7 +246,7 @@ function localArt(it, kind) {
   return null;
 }
 
-const TRAILER_FILE = /(?:^|[\s._-])(?:trailer|bande[ ._-]?annonce)$/i, TRAILER_DIR = /^(?:trailers?|bandes?[ _-]?annonces?)$/i, VEXT_T = ['mp4', 'mkv', 'webm', 'm4v', 'mov', 'avi', 'ts'];
+const TRAILER_FILE = /(?:^|[\s._-])(?:trailer|bande[ ._-]?annonce)(?:[ ._-]*[(\[]?(?:19|20)\d{2}[)\]]?)?(?:[._-]?f\d+)?$/i, TRAILER_DIR = /^(?:trailers?|bandes?[ _-]?annonces?)$/i, VEXT_T = ['mp4', 'mkv', 'webm', 'm4v', 'mov', 'avi', 'ts'];
 function localTrailer(it) {
   const dirs = [path.dirname(it.file)];
   if (it.type === 'shows') { let d = dirs[0]; for (let n = 0; n < 2; n++) { const q = path.dirname(d); if (q.length > it.root.length && q !== d) { dirs.push(q); d = q; } else break; } }
@@ -609,7 +611,8 @@ async function ensureYtdlp(j) {
 async function dlYt(j) {
   const y = await ensureYtdlp(j); if (j.state !== 'run') return;
   try { fs.mkdirSync(path.dirname(j.file), { recursive: true }); } catch (e) { throw new Error('Dossier inaccessible : ' + e.message); }
-  const base = j.file.replace(/\.mp4$/i, ''), fmt = FFMPEG ? 'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/b[ext=mp4]/b' : 'b[ext=mp4]/b';
+  const tmpDir = path.join(DATA, 'dltmp', String(j.id)); try { fs.rmSync(tmpDir, { recursive: true, force: true }); fs.mkdirSync(tmpDir, { recursive: true }); } catch {}   // travail hors des bibliothèques : jamais de fichier partiel pris pour un film
+  const base = path.join(tmpDir, 'trailer'), fmt = FFMPEG ? 'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/b[ext=mp4]/b' : 'b[ext=mp4]/b';
   const args = ['--newline', '--no-playlist', '--force-overwrites', '--no-part', '-f', fmt, '--merge-output-format', 'mp4', '-o', base + '.%(ext)s'];
   if (FFMPEG && path.isAbsolute(FFMPEG)) args.push('--ffmpeg-location', path.dirname(FFMPEG));
   args.push('https://www.youtube.com/watch?v=' + j.yt);
@@ -618,7 +621,7 @@ async function dlYt(j) {
     const onL = d => { for (const ln of String(d).split(/\r?\n/)) { const m = ln.match(/\[download\]\s+([\d.]+)%/); if (m) j.pct = Math.min(99, Math.floor(+m[1])); } };
     c.stdout.on('data', onL); c.stderr.on('data', d => { err += d; if (err.length > 2000) err = err.slice(-2000); });
     c.on('error', reject);
-    c.on('close', code => { if (j.state !== 'run') return resolve(); if (code !== 0) return reject(new Error((err.split('\n').filter(Boolean).pop() || 'yt-dlp a échoué').slice(0, 200))); const real = [base + '.mp4', base + '.mkv', base + '.webm'].find(x => fs.existsSync(x)); if (real) j.file = real; j.state = 'done'; j.pct = 100; if (j.after) j.after(); dlPump(); resolve(); });
+    c.on('close', code => { if (j.state !== 'run') return resolve(); if (code !== 0) return reject(new Error((err.split('\n').filter(Boolean).pop() || 'yt-dlp a échoué').slice(0, 200))); const real = [base + '.mp4', base + '.mkv', base + '.webm'].find(x => fs.existsSync(x)); if (!real) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} return reject(new Error('Fichier introuvable après le téléchargement')); } const dest = j.file.replace(/\.mp4$/i, path.extname(real)); try { try { fs.renameSync(real, dest); } catch { fs.copyFileSync(real, dest); fs.unlinkSync(real); } } catch (e) { return reject(new Error('Déplacement impossible : ' + e.message)); } try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} j.file = dest; j.state = 'done'; j.pct = 100; if (j.after) j.after(); dlPump(); resolve(); });
   });
 }
 const ACTIVE = new Set();
@@ -744,6 +747,7 @@ SRV = http.createServer(async (req, res) => {
   const ok = extra => J(req, res, { ok: true, ...(extra || {}) });
   try {
     if (p === '/') { let h; try { h = fs.readFileSync(asset('index.html')); } catch { return send(res, 500, 'text/plain; charset=utf-8', 'index.html introuvable : placez index.html (et le dossier assets) a cote de TBSA-Serveur.exe, puis relancez.'); } return send(res, 200, 'text/html; charset=utf-8', h, { 'Cache-Control': 'no-store' }); }
+    if (p === '/api/apk-info') { const f = apkPath(); if (!f) return J(req, res, { has: false }); const st = fs.statSync(f); return J(req, res, { has: true, stamp: st.size + '-' + Math.floor(st.mtimeMs) }); }
     if (p === '/apk' || p === '/TBSA-Serveur.apk') {
       const f = apkPath(); if (!f) return send(res, 404, 'text/plain; charset=utf-8', 'Aucun fichier TBSA-Serveur.apk trouve : placez-le a cote de TBSA-Serveur.exe puis rechargez cette page.');
       const st = fs.statSync(f); res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Length': st.size, 'Content-Disposition': 'attachment; filename="TBSA-Serveur.apk"' }); return fs.createReadStream(f).pipe(res);
@@ -1111,7 +1115,7 @@ SRV = http.createServer(async (req, res) => {
         if (!need()) return; const b = JSON.parse(await body(req)), nm = x => String(x || '').trim().slice(0, 40);
         if (b.action === 'create' && nm(b.name) && !cats.list.includes(nm(b.name))) cats.list.push(nm(b.name));
         if (b.action === 'delete') { cats.list = cats.list.filter(x => x !== b.name); for (const k in cats.map) { cats.map[k] = cats.map[k].filter(x => x !== b.name); if (!cats.map[k].length) delete cats.map[k]; } }
-        if (b.action === 'set' && index[b.id]) { const c = (b.cats || []).map(nm).filter(Boolean), k = itemKey(index[b.id]); c.forEach(x => { if (!cats.list.includes(x)) cats.list.push(x); }); if (c.length) cats.map[k] = c; else delete cats.map[k]; }
+        if (b.action === 'set' && byId.get(+b.id)) { const c = (b.cats || []).map(nm).filter(Boolean), k = itemKey(byId.get(+b.id)); c.forEach(x => { if (!cats.list.includes(x)) cats.list.push(x); }); if (c.length) cats.map[k] = c; else delete cats.map[k]; }
         cats.list.sort((a, b) => a.localeCompare(b)); save('categories.json', cats);
       }
       return J(req, res, { list: cats.list });
