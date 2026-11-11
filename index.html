@@ -1684,33 +1684,40 @@ function catSorted(key, cats) {
   var a = cats.filter(function (c) { return ix[String(c[0])] != null; }).sort(function (x, y) { return ix[String(x[0])] - ix[String(y[0])]; });
   return a.concat(azSort(cats.filter(function (c) { return ix[String(c[0])] == null; }), function (c) { return c[1]; }));
 }
-var CATORD = { key: null, grab: null, redo: null, cats: null };
-function catMove(d) {
-  if (!CATORD.key || CATORD.grab == null) return; var ids = catSorted(CATORD.key, CATORD.cats).map(function (c) { return String(c[0]); }), i = ids.indexOf(String(CATORD.grab)), j = i + d;
-  if (i < 0 || j < 0 || j >= ids.length) return; var t = ids[i]; ids[i] = ids[j]; ids[j] = t; catOrdSet(CATORD.key, ids); CATORD.keepFocus = true; CATORD.rebuild();
-}
-document.addEventListener('keydown', function (e) {
-  if (CATORD.key && CATORD.grab != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); e.stopPropagation(); catMove(e.key === 'ArrowLeft' ? -1 : 1); }
-}, true);
+var CATORD = { keepFocus: false };
 function catPills(key, cats, F, max, redo, fav) {
-  var wrap = el('div'), mode = CATORD.mode === key;
-  if (!F._ld) { F._ld = 1; try { var s = localStorage.getItem('tbsa.fc.' + key); if (s !== null && !F.cat) F.cat = s; } catch (e) {} }
-  var sorted = catSorted(key, cats), head = [['', 'Toutes']]; if (fav && S.st.favCh.length) head.push(['__fav', '★ Favoris']);
-  var rebuild = function () { var n = catPills(key, cats, F, max, redo, fav); wrap.replaceWith(n); };
-  CATORD.key = key; CATORD.cats = cats; CATORD.rebuild = rebuild; if (!mode) CATORD.grab = null;
-  wrap.append(pillsBar(head.concat(sorted), mode ? CATORD.grab : F.cat, function (id) {
-    if (mode) { if (id === '' || id === '__fav') return; CATORD.grab = (CATORD.grab === id) ? null : id; CATORD.keepFocus = true; rebuild(); return; }
-    F.cat = id; F.max = max; try { localStorage.setItem('tbsa.fc.' + key, id); } catch (e) {} CATORD.keepFocus = true; redo();
-  }));
-  var bar = el('div', 'bar'), mk = function (t, f, cls) { var b = el('button', 'btn sm ' + (cls || ''), t); b.onclick = f; bar.append(b); return b; };
-  if (!mode) mk('⇅ Classer les catégories', function () { CATORD.mode = key; CATORD.grab = null; rebuild(); }, 'ghost');
-  else {
-    bar.append(el('span', 'msg', CATORD.grab == null ? 'Choisissez une catégorie (OK), puis ◀ ▶ pour la déplacer.' : 'Déplacez avec ◀ ▶ de la télécommande ou les boutons.'));
-    mk('◀ Monter', function () { catMove(-1); }); mk('▶ Descendre', function () { catMove(1); });
-    mk('A→Z auto', function () { catOrdSet(key, []); CATORD.grab = null; rebuild(); }, 'ghost'); mk('✓ Terminé', function () { CATORD.mode = null; CATORD.grab = null; rebuild(); }, 'red');
-  }
-  wrap.append(bar);
-  if (CATORD.keepFocus) { CATORD.keepFocus = false; setTimeout(function () { var e = wrap.querySelector('.chip.on'); if (e) { try { e.focus({ preventScroll: true }); } catch (x) {} } }, 0); }
+  if (!F._ld) { F._ld = 1; try { var s0 = localStorage.getItem('tbsa.fc.' + key); if (s0 !== null && !F.cat) F.cat = s0; } catch (e) {} }
+  var head = [['', 'Toutes']]; if (fav && S.st.favCh.length) head.push(['__fav', '★ Favoris']);
+  var wrap = el('div', 'bar'), btn = el('button', 'btn');
+  var nameOf = function (id) { if (id === '') return 'Toutes'; if (id === '__fav') return '★ Favoris'; var f = cats.filter(function (c) { return String(c[0]) === String(id); })[0]; return f ? f[1] : 'Toutes'; };
+  btn.textContent = 'Catégorie : ' + nameOf(F.cat) + ' ▾'; wrap.append(btn);
+  btn.onclick = function () {
+    var items = head.concat(catSorted(key, cats)), mode = false, grab = null;
+    var o = openOv('<div class="dh2">Catégories</div><div class="catl" style="max-height:62vh;overflow:auto;padding:10px;display:grid;gap:6px"></div><div class="df"><span class="msg" data-h style="font-size:13px"></span><span><button class="btn sm ghost" data-a="o">⇅ Classer</button> <button class="btn sm ghost" data-a="z">A→Z</button> <button class="btn sm" data-a="c">Fermer</button></span></div>');
+    var list = $('.catl', o.dlg), hint = $('[data-h]', o.dlg), ob = $('[data-a=o]', o.dlg);
+    var pick = function (id) { F.cat = id; F.max = max; try { localStorage.setItem('tbsa.fc.' + key, id); } catch (e) {} o.close(); CATORD.keepFocus = true; redo(); };
+    var draw = function (fid) {
+      list.innerHTML = ''; var tf = null;
+      items.forEach(function (it) { var b = el('button', 'btn ghost'); b.style.textAlign = 'left'; b.style.justifyContent = 'flex-start'; b.dataset.id = it[0];
+        b.textContent = (grab === it[0] ? '◆ ' : '') + it[1] + (!mode && String(it[0]) === String(F.cat) ? '   ✓' : '');
+        b.onclick = function () { if (mode) { if (it[0] === '' || it[0] === '__fav') return; grab = (grab === it[0]) ? null : it[0]; draw(it[0]); return; } pick(it[0]); };
+        list.append(b); if (String(it[0]) === String(fid)) tf = b; });
+      hint.textContent = mode ? (grab == null ? 'OK sur une catégorie, puis ▲ ▼ pour la déplacer' : 'Déplacez avec ▲ ▼, OK pour déposer') : '';
+      ob.textContent = mode ? '✓ Terminé' : '⇅ Classer';
+      if (tf && isTV()) { try { tf.focus({ preventScroll: true }); tf.scrollIntoView({ block: 'center' }); } catch (e) {} }
+    };
+    var kh = function (e) {
+      if (!mode || grab == null || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return; e.preventDefault(); e.stopPropagation();
+      var i = items.findIndex(function (x) { return x[0] === grab; }), j = i + (e.key === 'ArrowUp' ? -1 : 1); if (i < 0 || j < head.length || j >= items.length) return;
+      var t = items[i]; items[i] = items[j]; items[j] = t; catOrdSet(key, items.slice(head.length).map(function (x) { return String(x[0]); })); draw(grab);
+    };
+    window.addEventListener('keydown', kh, true); var oc = o.close; o.close = function () { window.removeEventListener('keydown', kh, true); oc(); };
+    ob.onclick = function () { mode = !mode; grab = null; draw(F.cat); };
+    $('[data-a=z]', o.dlg).onclick = function () { catOrdSet(key, []); items = head.concat(catSorted(key, cats)); grab = null; draw(grab); };
+    $('[data-a=c]', o.dlg).onclick = o.close;
+    draw(F.cat);
+  };
+  if (CATORD.keepFocus) { CATORD.keepFocus = false; setTimeout(function () { try { btn.focus({ preventScroll: true }); } catch (x) {} }, 0); }
   return wrap;
 }
 function pillsBar(items, cur, fn) {
