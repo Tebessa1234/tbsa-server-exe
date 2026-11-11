@@ -509,7 +509,7 @@ function buildHeader() {
   if (has('movies')) tabs.push(['movies', 'Films']); if (has('shows')) tabs.push(['shows', 'Séries']); if (has('other')) tabs.push(['other', 'Vidéos']);
   if (c.iptv.xtream) tabs.push(['live', 'TV en direct'], ['vod', 'Films IPTV'], ['series', 'Séries IPTV']);
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
-  tabs.push(['list', 'Ma liste']);
+  tabs.push(['list', 'Ma liste']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
   $('#top').innerHTML = '<a class="logo" href="#/home">' + BRAND + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
     (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
   $('#bs').onclick = function () { go('#/search'); }; if ($('#bscan')) $('#bscan').onclick = scanNow; $('#bu').onclick = userMenu;
@@ -542,7 +542,7 @@ async function pollScan(n) {
 
 /* ===== Routeur ===== */
 function route() {
-  document.body.classList.remove('hd');
+  document.body.classList.remove('hd'); remoteInit();
   if (!S.me || S.loginOpen) return; stopTheme(); clearInterval(S.actT);
   var h = (location.hash || '#/home').replace(/^#\/?/, ''), parts = h.split('/').map(function (x) { try { return decodeURIComponent(x); } catch (e) { return x; } }), name = parts[0] || 'home', tk = ++S.rt;
   $$('#nav a').forEach(function (a) { a.classList.toggle('on', a.dataset.r === activeTab(name)); });
@@ -989,6 +989,105 @@ function musicBtn() {
   b.onclick = function () { var on = !prefs().music; setPref('music', on); b.textContent = on ? '🔊 Musique' : '🔇 Musique'; if (!on) stopTheme(); else { var id = b.dataset.id; if (id) startTheme(+id); } };
   return b;
 }
+
+/* ===== Télécommande vocale (téléphone → télé) ===== */
+function remoteInit() {   // la télé (mode TV) reçoit les ordres envoyés depuis le téléphone
+  if (S.rem || !S.me || typeof EventSource === 'undefined' || !document.documentElement.classList.contains('tv')) return;
+  try { var es = new EventSource('/api/remote/events'); S.rem = es; es.onmessage = function (e) { try { remoteDo(JSON.parse(e.data)); } catch (x) {} }; } catch (e) {}
+}
+function remoteDo(c) {
+  if (c.say) toast('🎤 ' + c.say, 3500);
+  var v = PL && PL.v, trl = $('.trl video');
+  if (c.a === 'open') { if (v) { try { closePlayer(true); } catch (e) {} } location.hash = c.href; return; }
+  if (c.a === 'chan') { if (v) { try { closePlayer(true); } catch (e) {} } play([descLive(c.ch)], 0, { live: true }); return; }
+  if (c.a === 'home') { location.hash = '#/home'; return; }
+  if (c.a === 'back') { goBack(); return; }
+  if (c.a === 'pause') { if (v) { try { v.pause(); showCtl(); } catch (e) {} } else if (trl) trl.pause(); else toast('Rien en lecture'); return; }
+  if (c.a === 'resume' || c.a === 'play') {
+    if (v) { try { v.play(); showCtl(); } catch (e) {} return; }
+    if (trl) { trl.play(); return; }
+    var b = $('.acts .btn.red'); if (b) b.click(); else toast('Ouvrez d’abord un film'); return;
+  }
+  if (c.a === 'trailer') { var bs = document.querySelectorAll('.acts .btn'), tb = null; [].forEach.call(bs, function (x) { if (/^\s*Bande-annonce\s*$/i.test(x.textContent)) tb = x; }); if (tb) tb.click(); else toast('Pas de bande-annonce ici'); return; }
+  if (c.a === 'seek') { if (v) { skip(c.s); showCtl(); } else toast('Aucune lecture en cours'); return; }
+  if (c.a === 'chap') {
+    if (!v) { toast('Aucune lecture en cours'); return; } var ch = chapList(), pos = curPos(), i;
+    if (!ch.length) { toast('Pas de chapitres pour cette vidéo'); return; }
+    if (c.n) i = Math.min(ch.length, Math.max(1, c.n)) - 1;
+    else if (c.d > 0) { i = -1; ch.forEach(function (x, k) { if (i < 0 && x.t > pos + 1) i = k; }); if (i < 0) { toast('Dernier chapitre'); return; } }
+    else { i = 0; ch.forEach(function (x, k) { if (x.t < pos - 3) i = k; }); }
+    seekTo(ch[i].t); showCtl(); toast('Chapitre ' + (i + 1) + (ch[i].title ? ' · ' + ch[i].title : '')); return;
+  }
+}
+var VNUM = { un: 1, une: 1, premier: 1, premiere: 1, deux: 2, second: 2, seconde: 2, deuxieme: 2, trois: 3, troisieme: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12, treize: 13, quatorze: 14, quinze: 15, seize: 16, vingt: 20, trente: 30, quarante: 40, cinquante: 50, soixante: 60 };
+function vNorm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’`]/g, ' ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function vNums(t) {   // « dix sept » / « vingt cinq » / mots → chiffres
+  var w = t.split(' '), o = [], i = 0; while (i < w.length) { var a = VNUM[w[i]], b = VNUM[w[i + 1]]; if (a && (a === 10 || a >= 20) && b && b < 10 && !(a === 10 && false)) { o.push(String(a + b)); i += 2; } else { o.push(a ? String(a) : w[i]); i++; } } return o.join(' ');
+}
+function vSearch(q, n) {
+  var stop = { le: 1, la: 1, les: 1, l: 1, un: 1, une: 1, de: 1, du: 1, des: 1, the: 1, film: 1, serie: 1, saga: 1 }, toks = q.split(' ').filter(function (x) { return x && !stop[x]; });
+  if (!toks.length) return null; var cands = [];
+  var test = function (name) { var nn = vNorm(name), ok = toks.every(function (x) { return (' ' + nn + ' ').indexOf(' ' + x) >= 0; }); return ok ? nn : null; };
+  S.lib.forEach(function (i) { if (i.type !== 'movies') return; var nn = test(i.name || i.title); if (nn) cands.push({ t: i.name || i.title, nn: nn, y: i.year || 0, href: '#/movie/' + i.id, kind: 'film' }); });
+  (S.shows || []).forEach(function (s) { var nn = test(s.name); if (nn) cands.push({ t: s.name, nn: nn, y: s.year || 0, href: '#/show/' + encodeURIComponent(s.key), kind: 'série' }); });
+  if (!cands.length) return null;
+  cands.sort(function (a, b) { return (a.y || 9999) - (b.y || 9999); });
+  if (n) {
+    var withN = cands.filter(function (c) { return (' ' + c.nn + ' ').indexOf(' ' + n + ' ') >= 0; });
+    if (withN.length) return withN[0];
+    var noNum = cands.filter(function (c) { return !/ \d /.test(' ' + c.nn + ' '); });      /* « Terminator » = n°1 s'il n'a pas de chiffre */
+    if (n === 1 && noNum.length) return noNum[0];
+    return cands[Math.min(cands.length, n) - 1];
+  }
+  var exact = cands.filter(function (c) { return c.nn === toks.join(' '); }); return exact[0] || cands.filter(function (c) { return !/ \d /.test(' ' + c.nn + ' '); })[0] || cands[0];
+}
+function voiceParse(raw) {
+  var t = vNums(vNorm(raw)); if (!t) return null; var m;
+  if (/bande annonce|trailer/.test(t) && !/modifier/.test(t)) return { a: 'trailer', say: 'Bande-annonce' };
+  if (/chapitre/.test(t)) {
+    if (/(suivant|prochain|apres)/.test(t)) return { a: 'chap', d: 1, say: 'Chapitre suivant' };
+    if (/(precedent|avant)/.test(t)) return { a: 'chap', d: -1, say: 'Chapitre précédent' };
+    if ((m = t.match(/\b(\d{1,3})\b/))) return { a: 'chap', n: +m[1], say: 'Chapitre ' + m[1] };
+    return { err: 'Quel chapitre ? Dites par exemple « chapitre 3 ».' };
+  }
+  if ((m = t.match(/\b(avance|saute|recule|retourne|retour en arriere)\b.*?\b(\d{1,3})\s*(heure|h|minute|min|seconde|sec)/))) { var k = /^h/.test(m[3]) ? 3600 : /^m/.test(m[3]) ? 60 : 1, sg = /^(recule|retourne|retour)/.test(m[1]) ? -1 : 1; return { a: 'seek', s: sg * (+m[2]) * k, say: (sg > 0 ? 'Avance de ' : 'Recule de ') + m[2] + (/^h/.test(m[3]) ? ' h' : /^m/.test(m[3]) ? ' min' : ' s') }; }
+  if (/^(mets? |met |mettre |fais |fait )?(en )?pause$|^(stop|arrete|arreter|attends|stoppe)\b/.test(t) || /\bpause\b/.test(t)) return { a: 'pause', say: 'Pause' };
+  if (/^(reprends|reprendre|reprise|continue|continuer|play|remets|relance)\b/.test(t) || /\b(reprends|reprendre)\b/.test(t)) return { a: 'resume', say: 'Reprise' };
+  if (/^(retour|ferme|quitte|annule)$/.test(t)) return { a: 'back', say: 'Retour' };
+  if (/^(l )?accueil$|^va a l accueil$/.test(t)) return { a: 'home', say: 'Accueil' };
+  var q = t.replace(/^(s il te plait |s il vous plait |peux tu |pouvez vous |tu peux |alors |ok |dis donc )+/, '')
+    .replace(/^(je veux voir|je veux regarder|j aimerais voir|j aimerais regarder|on regarde|on lance|je voudrais voir|mets moi|met moi|mets|met|mettre|lance moi|lance|lancer|joue|jouer|ouvre|ouvrir|montre moi|montre|affiche moi|affiche|afficher|cherche|chercher|trouve|regarde|regarder|va sur|passe sur|passe|zappe sur|zappe|bascule sur|change pour|met sur|demarre|demarrer)\b\s*/, '')
+    .replace(/^(le |la |les |l )?(film|serie|saga|episode)\s+/, '').replace(/^(le |la |les |l |un |une )\s*/, '').trim();
+  if (!q || /^(film|serie|lecture|episode|le film|la serie|ca|ceci|la lecture)$/.test(q)) return { a: 'play', say: 'Lecture' };
+  var n = 0, mm = q.match(/\b(\d{1,2})\b\s*$/); if (mm) { n = +mm[1]; q = q.replace(/\b\d{1,2}\b\s*$/, '').trim(); }
+  if (/^(sur )?(la )?chaine\b/.test(q) || /\bchaine\b/.test(t)) return { a: 'findch', q: (q.replace(/^(sur )?(la )?chaine\s*/, '').replace(/\bchaine\b/, '').trim() + (n ? ' ' + n : '')).trim() };
+  var r = vSearch(q, n); if (!r) return { a: 'findch', q: q + (n ? ' ' + n : ''), say: 'Aucun film trouvé' };
+  if (0) return { err: 'Je n’ai rien trouvé pour « ' + q + (n ? ' ' + n : '') + ' ».' };
+  return { a: 'open', href: r.href, say: 'Ouverture : ' + r.t + (r.y ? ' (' + r.y + ')' : '') };
+}
+ROUTES.remote = async function (v) {
+  v.innerHTML = '<div style="max-width:640px;margin:0 auto;padding:16px"><h2>🎤 Télécommande vocale</h2><p class="msg" data-r="st">Connexion…</p>' +
+    '<div style="display:flex;gap:8px"><input id="vq" placeholder="Dites ou tapez : « mets Terminator 1 »" style="flex:1;font-size:18px;padding:14px" autocomplete="off"><button class="btn red" id="vgo">Envoyer</button></div>' +
+    '<p class="msg" style="font-size:13px">Astuce : appuyez sur le micro du clavier de votre téléphone et parlez.</p><div data-r="fb" class="msg" style="font-size:17px;min-height:26px"></div>' +
+    '<div data-r="btns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"></div></div>';
+  var st = $('[data-r=st]', v), fb = $('[data-r=fb]', v), inp = $('#vq', v);
+  var chk = async function () { try { var r = await api('/api/remote/tv'); st.textContent = r.n ? '✓ Télé connectée' : '⚠ Aucune télé connectée (ouvrez TBSA sur le stick)'; } catch (e) {} }; chk(); var iv = setInterval(function () { if (!document.body.contains(v)) { clearInterval(iv); return; } chk(); }, 5000);
+  var send = async function (c) { if (c.err) { fb.textContent = c.err; return; } try { var r = await post('/api/remote/send', c); fb.textContent = (r.n ? '✓ ' : '⚠ Télé non connectée — ') + (c.say || ''); } catch (e) { fb.textContent = e.message; } };
+  var chans = null;
+  var findCh = async function (q) {
+    if (!chans) { chans = []; try { if (S.cfg.iptv.xtream) { var r = await xt('get_live_streams'); if (Array.isArray(r)) r.forEach(function (s) { chans.push({ id: 'x' + s.stream_id, sid: s.stream_id, name: s.name, logo: s.stream_icon, num: s.num, src: '/xt/live/' + s.stream_id, x: true }); }); } if (S.cfg.iptv.m3u) { var l = await api('/api/m3u'); if (Array.isArray(l)) l.forEach(function (c) { chans.push({ id: 'm' + c.n, n: c.n, name: c.name, logo: c.logo, num: c.n + 1, src: '/m3u/' + c.n, hls: c.hls }); }); } } catch (e) {} chans.forEach(function (c) { c.tk = vNorm(String(c.name).replace(/\+/g, ' plus ')).split(' ').filter(Boolean); }); }
+    var qt = vNums(vNorm(q)).split(' ').filter(Boolean), best = null, bs = 1e9;
+    if (!qt.length) return null;
+    chans.forEach(function (c) { var ok = qt.every(function (w) { return c.tk.indexOf(w) >= 0; }); if (!ok) return; var ex = c.tk.filter(function (w) { return qt.indexOf(w) < 0 && !/^(hd|fhd|uhd|4k|fr|sd|fra|tnt)$/.test(w); }).length; if (ex < bs) { bs = ex; best = c; } });
+    return best;
+  };
+  var go = async function () { var c = voiceParse(inp.value); if (!c) return; inp.value = '';
+    if (c.a === 'findch') { fb.textContent = 'Recherche…'; var ch = await findCh(c.q); if (!ch) { fb.textContent = 'Je n’ai rien trouvé pour « ' + c.q + ' ».'; return; } c = { a: 'chan', ch: ch, say: 'Chaîne : ' + ch.name }; }
+    send(c); };
+  $('#vgo', v).onclick = go; inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  [['▶ Lecture', { a: 'play', say: 'Lecture' }], ['⏸ Pause', { a: 'pause', say: 'Pause' }], ['⏯ Reprendre', { a: 'resume', say: 'Reprise' }], ['🎞 Bande-annonce', { a: 'trailer', say: 'Bande-annonce' }], ['⏮ Chapitre précédent', { a: 'chap', d: -1, say: 'Chapitre précédent' }], ['⏭ Chapitre suivant', { a: 'chap', d: 1, say: 'Chapitre suivant' }], ['⏪ −10 min', { a: 'seek', s: -600, say: '−10 min' }], ['⏩ +10 min', { a: 'seek', s: 600, say: '+10 min' }], ['↩ Retour', { a: 'back', say: 'Retour' }], ['🏠 Accueil', { a: 'home', say: 'Accueil' }]].forEach(function (b) { var x = el('button', 'btn', b[0]); x.style.padding = '16px'; x.onclick = function () { send(b[1]); }; $('[data-r=btns]', v).append(x); });
+  setTimeout(function () { try { inp.focus(); } catch (e) {} }, 300);
+};
 ROUTES.movie = async function (v, p) {
   var id = +p[0], f = await api('/api/item/' + id), i = S.byId[id] || f, m = mMovie(Object.assign({}, i, { name: f.name || i.name, year: f.year || i.year, rating: f.rating || i.rating })); m.ref = i; m.bd = f.backdropSm || m.bd;
   v.innerHTML = ''; var pr = prog(i.k), resume = pr && !pr.w && pr.dur && pr.pos / pr.dur > 0.02 && pr.pos / pr.dur < 0.92;
@@ -1576,14 +1675,50 @@ function chanCard(c, list, idx) {
   longOK(cd, f, tgl);   // télécommande : OK = lire, OK maintenu (ou touche Menu) = favori
   return cd;
 }
+
+/* ===== Catégories IPTV : A→Z, ordre manuel, mémorisation ===== */
+function catOrdGet(k) { try { return JSON.parse(localStorage.getItem('tbsa.co.' + k) || '[]'); } catch (e) { return []; } }
+function catOrdSet(k, a) { try { localStorage.setItem('tbsa.co.' + k, JSON.stringify(a)); } catch (e) {} }
+function catSorted(key, cats) {
+  var ix = {}; catOrdGet(key).forEach(function (id, i) { ix[String(id)] = i; });
+  var a = cats.filter(function (c) { return ix[String(c[0])] != null; }).sort(function (x, y) { return ix[String(x[0])] - ix[String(y[0])]; });
+  return a.concat(azSort(cats.filter(function (c) { return ix[String(c[0])] == null; }), function (c) { return c[1]; }));
+}
+var CATORD = { key: null, grab: null, redo: null, cats: null };
+function catMove(d) {
+  if (!CATORD.key || CATORD.grab == null) return; var ids = catSorted(CATORD.key, CATORD.cats).map(function (c) { return String(c[0]); }), i = ids.indexOf(String(CATORD.grab)), j = i + d;
+  if (i < 0 || j < 0 || j >= ids.length) return; var t = ids[i]; ids[i] = ids[j]; ids[j] = t; catOrdSet(CATORD.key, ids); CATORD.keepFocus = true; CATORD.redo();
+}
+document.addEventListener('keydown', function (e) {
+  if (CATORD.key && CATORD.grab != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); e.stopPropagation(); catMove(e.key === 'ArrowLeft' ? -1 : 1); }
+}, true);
+function catPills(key, cats, F, max, redo, fav) {
+  var wrap = el('div'), mode = CATORD.mode === key;
+  if (!F._ld) { F._ld = 1; try { var s = localStorage.getItem('tbsa.fc.' + key); if (s !== null && !F.cat) F.cat = s; } catch (e) {} }
+  var sorted = catSorted(key, cats), head = [['', 'Toutes']]; if (fav && S.st.favCh.length) head.push(['__fav', '★ Favoris']);
+  CATORD.key = key; CATORD.cats = cats; CATORD.redo = redo; if (!mode) CATORD.grab = null;
+  wrap.append(pillsBar(head.concat(sorted), mode ? CATORD.grab : F.cat, function (id) {
+    if (mode) { if (id === '' || id === '__fav') return; CATORD.grab = (CATORD.grab === id) ? null : id; CATORD.keepFocus = true; redo(); return; }
+    F.cat = id; F.max = max; try { localStorage.setItem('tbsa.fc.' + key, id); } catch (e) {} CATORD.keepFocus = true; redo();
+  }));
+  var bar = el('div', 'bar'), mk = function (t, f, cls) { var b = el('button', 'btn sm ' + (cls || ''), t); b.onclick = f; bar.append(b); return b; };
+  if (!mode) mk('⇅ Classer les catégories', function () { CATORD.mode = key; CATORD.grab = null; redo(); }, 'ghost');
+  else {
+    bar.append(el('span', 'msg', CATORD.grab == null ? 'Choisissez une catégorie (OK), puis ◀ ▶ pour la déplacer.' : 'Déplacez avec ◀ ▶ de la télécommande ou les boutons.'));
+    mk('◀ Monter', function () { catMove(-1); }); mk('▶ Descendre', function () { catMove(1); });
+    mk('A→Z auto', function () { catOrdSet(key, []); CATORD.grab = null; redo(); }, 'ghost'); mk('✓ Terminé', function () { CATORD.mode = null; CATORD.grab = null; redo(); }, 'red');
+  }
+  wrap.append(bar);
+  if (CATORD.keepFocus) { CATORD.keepFocus = false; setTimeout(function () { var e = wrap.querySelector('.chip.on'); if (e) { try { e.focus({ preventScroll: true }); } catch (x) {} } }, 0); }
+  return wrap;
+}
 function pillsBar(items, cur, fn) {
   var b = el('div', 'pills'); items.forEach(function (it) { var c = el('button', 'chip' + (cur === it[0] ? ' on' : ''), esc(it[1])); c.onclick = function () { fn(it[0]); }; b.append(c); }); return b;
 }
 async function channelsPage(v, o) {
   var F = S.f[o.key] || (S.f[o.key] = { cat: '', q: '', max: 300 }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + o.title + '</h2></div>';
   var data; try { data = await o.load(F); } catch (e) { v.append(el('div', 'emp', esc(e.message || 'Impossible de charger les chaînes. Vérifiez les Réglages IPTV.'))); return; }
-  var cats = data.cats.slice(); if (S.st.favCh.length) cats.unshift(['__fav', '★ Favoris']); cats.unshift(['', 'Toutes']);
-  v.append(pillsBar(cats, F.cat, function (c) { F.cat = c; F.max = 300; channelsPage(v, o); }));
+  v.append(catPills(o.key, data.cats, F, 300, function () { channelsPage(v, o); }, true));
   var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer les chaînes…'; qi.value = F.q; qi.style.width = '260px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
   var draw = function () {
     var list = data.all.filter(function (c) { return (F.cat === '__fav' ? S.st.favCh.indexOf(c.id) >= 0 : (!F.cat || c.cat === F.cat)) && (!F.q || c.name.toLowerCase().indexOf(F.q.toLowerCase()) >= 0); });
@@ -1611,7 +1746,7 @@ function xtPosters(key, title, catAct, listAct, mk) {
   return async function (v) {
     var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: 240 }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
     try { var r = await Promise.all([xt(catAct), xt(listAct)]); cats = r[0]; list = r[1]; if (!Array.isArray(cats) || !Array.isArray(list)) throw 0; cats = azSort(cats, function (x) { return x.category_name; }); list = azSort(list, function (x) { return x.name; }); } catch (e) { v.append(el('div', 'emp', 'Impossible de charger le catalogue IPTV. Vérifiez les Réglages.')); return; }
-    v.append(pillsBar([['', 'Toutes']].concat(cats.map(function (c) { return [c.category_id, c.category_name]; })), F.cat, function (c) { F.cat = c; F.max = 240; ROUTES[key](v); }));
+    v.append(catPills(key, cats.map(function (c) { return [c.category_id, c.category_name]; }), F, 240, function () { ROUTES[key](v); }, false));
     var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '240px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
     var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += 240; draw(); }; m.append(b); box.append(m); } };
     var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = 240; draw(); }, 200); }; draw();

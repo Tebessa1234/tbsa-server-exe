@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.13.3', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.14.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -641,6 +641,7 @@ async function dlYt(j) {
   });
 }
 setTimeout(dlRestore, 4000);
+const REMOTE = new Set();
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -788,6 +789,14 @@ SRV = http.createServer(async (req, res) => {
     if (p === '/api/me') return J(req, res, { user: me ? pubUser(me) : null });
     if (!me) { if (p.startsWith('/api/')) return J(req, res, { error: 'auth' }, 401); res.writeHead(401); return res.end(); }
     const S = stOf(me), admin = !!me.admin, iptvOK = me.iptv !== false;
+    if (p === '/api/remote/events') {       // la télé (mode TV) écoute ici les commandes envoyées depuis le téléphone
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+      res.write('retry: 2000\n\n'); const cl = { res, uid: me.id }; REMOTE.add(cl);
+      const hb = setInterval(() => { try { res.write(': hb\n\n'); } catch {} }, 15000);
+      req.on('close', () => { clearInterval(hb); REMOTE.delete(cl); }); return;
+    }
+    if (p === '/api/remote/send' && POST) { const b = JSON.parse(await body(req)); let n = 0; const msg = 'data: ' + JSON.stringify(b).slice(0, 2000) + '\n\n'; for (const cl of REMOTE) if (cl.uid === me.id) { try { cl.res.write(msg); n++; } catch {} } return J(req, res, { ok: true, n }); }
+    if (p === '/api/remote/tv') { let n = 0; for (const cl of REMOTE) if (cl.uid === me.id) n++; return J(req, res, { n }); }
     if (p === '/api/backup' && req.method === 'GET') {
       if (!admin) return J(req, res, { error: 'Réservé à l’administrateur' }, 403);
       flush();
