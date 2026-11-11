@@ -17,7 +17,8 @@ A) FABRIQUER TBSA-Serveur-Setup.exe (une seule fois, avec GitHub)
 1. Sur github.com, creez un nouveau depot (bouton "New"), par exemple "TBSA-Windows" (prive ou public).
 2. Dezippez TBSA-Windows-installateur.zip sur votre PC.
 3. Dans le depot : "Add file" > "Upload files" > glissez TOUT le contenu du dossier dezippe
-   (fichiers ET dossiers : assets, build, installer, tray, et le dossier .github si Windows l'affiche).
+   (les fichiers a la racine ET le dossier assets, et le dossier .github si Windows l'affiche).
+   Verifiez dans GitHub que TrayApp.cs, tbsa.iss, make-icon.ps1 et ic_launcher.png sont bien visibles.
    Cliquez "Commit changes".
 4. Si le dossier ".github" n'a pas ete envoye (Windows cache les dossiers commencant par un point) :
    dans le depot, "Add file" > "Create new file", tapez dans le nom exactement

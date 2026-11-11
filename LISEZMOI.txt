@@ -1,4 +1,4 @@
-TBSA-Serveur 3.5.0 : votre serveur de films, series et TV, comme Plex, en rouge et noir
+TBSA-Serveur 3.5.4 : votre serveur de films, series et TV, comme Plex, en rouge et noir
 =====================================================================================
 
 DEMARRER (Windows)
@@ -122,7 +122,127 @@ RACCOURCIS DU LECTEUR (clavier / telecommande)
 FORMATS : tous les fichiers video courants sont reconnus (mp4, mkv, avi, ts, m2ts, mpg, wmv, flv, mov, webm,
 vob, 3gp...). Lecture directe quand l'appareil sait les lire, sinon conversion automatique avec ffmpeg.
 
-BANDES-ANNONCES (3.5.0)
+BANDES-ANNONCES (3.5.4)
 Sur chaque fiche de film ou de serie, le bouton "Bande-annonce" lit la video trouvee via votre cle TMDB (YouTube, internet necessaire).
 Sans internet : placez un fichier a cote du film, nomme "Nom du film (2020)-trailer.mp4" (ou "trailer.mp4" dans le dossier d'une serie, ou un dossier "Trailers").
 Ces fichiers ne sont jamais ajoutes comme des films.
+
+BARRE DE LECTURE ET CHAPITRES (3.5.5)
+- La barre du bas se masque seule apres 4 secondes d'inaction (meme apres un appui sur Bas).
+- Chaque chapitre a une vignette (image du film). Sur la telecommande : Bas = affiche la barre, Bas encore = liste des chapitres du film
+  (si le fichier n'en a pas, des reperes toutes les 15 minutes sont proposes). OK = aller au chapitre, Retour = fermer.
+
+ANIMATION D'OUVERTURE (3.6.0)
+- Au lancement : les lettres t, b, s, a se dessinent une par une en rouge 3D, eclatent en rayons de lumiere sur tout l ecran, puis une etincelle (flash) revele le logo. Dure ~9 secondes (touche ou clic pour passer).
+- Appuie sur une touche (OK/Retour) ou clique pour la passer. Elle ne se rejoue pas tant que l'application reste ouverte.
+- Pour la desactiver : ajouter ?nointro a l'adresse.
+
+FAVORIS DES CHAINES A LA TELECOMMANDE (3.8.3)
+- Dans la liste des chaines : OK = regarder ; OK MAINTENU (environ 1 seconde) = ajouter/retirer des favoris ; la touche Menu (≡) fait la meme chose.
+- Pendant le direct : OK MAINTENU (environ 1 seconde) ou touche Menu (≡) = ajouter/retirer la chaine des favoris. OK court = liste des chaines.
+
+ORDRE DES BIBLIOTHEQUES, 4K ET INFOS DE LECTURE (3.9.0)
+- Reglages > Bibliotheques : boutons ▲ ▼ pour changer l'ordre. Il s'applique aux onglets Films et Series (boutons de filtre).
+- Qualite : nouvelles options 4K (2160p) et 1440p dans le lecteur (Reglages > Qualite) et dans le profil. « Auto » monte jusqu'a la 4K quand une carte graphique encode (Reglages > Transcodeur). Sans carte graphique, la 4K en conversion est tres lourde : preferer « Original ».
+- Au-dessus de la barre de defilement : bandeau avec le mode (lecture directe ou conversion), la resolution (4K, 1080p...), le codec, le HDR, les images par seconde et l'audio. Il disparait avec la barre.
+
+FAVORIS DES CHAINES, VERSION RENFORCEE (3.9.2)
+- OK maintenu environ 0,6 seconde sur une chaine (liste TV en direct, liste des chaines dans le lecteur, ou pendant le direct) = favori. La touche Menu fait pareil. Les favoris ont une etoile jaune dans la liste des chaines du lecteur.
+
+MODIFIER LES BANDES-ANNONCES (3.10.0)
+- Fiche d'un film ou d'une serie (administrateur) : bouton « Modifier la bande-annonce ».
+  On peut : coller un lien YouTube, coller l'adresse directe d'une video (.mp4/.webm...), envoyer une video depuis le PC (bouton « Choisir un fichier video »),
+  choisir parmi les videos proposees par TMDB, ou desactiver la bande-annonce. « Remettre en automatique » annule le choix.
+- Les videos envoyees sont gardees dans le dossier de donnees (sous-dossier trailers). Elles ne sont pas incluses dans la sauvegarde.
+
+--- 3.10.1 : bandes-annonces envoyées depuis le PC ---
+Si la vidéo n'est pas lisible directement par le stick (MKV, HEVC, 4K, son AC3...), le serveur la convertit
+automatiquement en MP4 compatible (mis en cache dans le dossier "trailers"). Au premier lancement, un message
+"Préparation de la bande-annonce…" s'affiche quelques secondes, ensuite c'est instantané.
+
+--- 3.11.0 : téléchargements vers le PC, bandes-annonces ---
+* Fiche d'un film IPTV : bouton « Télécharger sur le PC » (nom et année modifiables). Fichier : Films\Nom (Année)\Nom (Année).mp4
+* Fiche d'une série IPTV : « Télécharger une saison », « Télécharger toute la série », et bouton « ⬇ PC » sur chaque épisode.
+  Fichier : Series\Nom\Season 01\Nom - S01E05.mp4 (nommage compatible avec le scan des bibliothèques).
+* Tout se télécharge sur le PC du serveur (pas sur le stick), 2 téléchargements en même temps, suivi dans « Téléchargements »
+  (appuyer sur un téléchargement en cours pour l'annuler). Dossier par défaut : Vidéos\TBSA-Telechargements.
+* Bande-annonce d'un film/série : dans la fenêtre de modification, « Télécharger sur le PC » à côté de chaque vidéo proposée.
+  Elle est enregistrée dans le dossier du film (Nom-trailer.mp4) et devient automatiquement sa bande-annonce.
+  (utilise yt-dlp, téléchargé automatiquement la première fois)
+* « Parcourir les fichiers du PC… » : choisir avec la télécommande une bande-annonce déjà présente sur le PC.
+* Correctif : bande-annonce locale qui restait en écran noir jusqu'au retour.
+
+--- 3.11.1 ---
+Clé TMDB intégrée par défaut (affiches, résumés, bandes-annonces) : plus rien à saisir dans Réglages.
+
+--- 3.11.2 ---
+Navigateur de fichiers des bandes-annonces : accès à tous les disques (ligne « Tous les disques » + dossier parent jusqu'à la racine).
+
+--- 3.11.3 : choix des dossiers de téléchargement ---
+Fenêtre « Téléchargements » : appuyer sur Dossier principal / Films / Séries / Bandes-annonces pour choisir l'emplacement
+(tous les disques sont accessibles) ; le bouton « + Nouveau dossier » crée le dossier voulu.
+
+--- 3.11.4 ---
+Sélecteurs de fichiers/dossiers : la touche Retour de la télécommande remonte d'un dossier, puis affiche la liste des disques (C:, D:…) ; elle ferme la fenêtre seulement depuis la liste des disques.
+
+--- 3.11.5 ---
+Chaque fenêtre de téléchargement (film, saison/épisode, bande-annonce) affiche « Dossier d'enregistrement sur le PC » : OK pour le changer (tous les disques, nouveau dossier possible). Le choix est mémorisé.
+Fiche → modifier la bande-annonce : bouton « Télécharger la bande-annonce actuelle sur le PC ».
+
+--- 3.11.6 : téléchargements rapides et fiables ---
+Les téléchargements utilisent maintenant plusieurs connexions en parallèle (comme un logiciel de téléchargement), reprennent
+automatiquement après une coupure et s'identifient comme un lecteur vidéo. Nombre de connexions : 6 par défaut
+(réglable avec "dlParts" dans config.json ; mettre 1 si votre fournisseur IPTV limite les connexions simultanées).
+
+--- 3.11.7 ---
+Mise à jour de l'application du stick sans désinstaller : le serveur indique si un TBSA-Serveur.apk plus récent est présent (/api/apk-info). Voir LISEZMOI-STICK.txt.
+
+--- 3.11.8 : fiches mélangées corrigées ---
+Chaque film/épisode garde maintenant le même identifiant même quand des fichiers sont ajoutés ou supprimés (scan automatique après un téléchargement, par exemple).
+Avant, l'ajout d'un fichier décalait les identifiants : l'affiche d'un film pouvait s'afficher avec le fond et le résumé d'un autre.
+
+--- 3.11.9 ---
+Les bandes-annonces téléchargées ne sont plus jamais prises pour des films (pas d'ajout à la saga) : elles se téléchargent hors des bibliothèques puis sont déplacées, et les fichiers nommés « trailer » / « bande annonce » (même avec l'année) sont ignorés au scan.
+
+--- 3.11.10 : tri A → Z par défaut ---
+Films, séries, Films IPTV et Séries IPTV (ainsi que leurs catégories) sont triés de A à Z automatiquement, en ignorant « Le / La / Les / L' / The… » et les accents (« Le Roi Lion » est classé à R). Le menu « Trier » permet toujours de choisir un autre ordre.
+
+--- 3.12.0 : reprise automatique des téléchargements ---
+Si le serveur s'arrête (mise à jour du Setup, redémarrage, coupure de courant), les téléchargements non terminés reprennent tout seuls au démarrage suivant, là où ils s'étaient arrêtés (liste conservée dans downloads.json).
+Seules les annulations manuelles et les erreurs définitives ne sont pas reprises.
+
+--- 3.12.1 ---
+Correctif : l'ouverture des Films IPTV / Séries IPTV ne fige plus (le tri A → Z des très grands catalogues est maintenant instantané).
+
+--- 3.13.0 : nouvelle animation d'ouverture ---
+L'animation du lancement est maintenant votre vidéo « intro Tbsa rouge noir » (fichier assets/intro.mp4, recadrée en plein écran 16:9, avec son).
+Elle se joue une fois par session ; OK / n'importe quelle touche ou un clic la passe. Pour en changer plus tard : remplacez simplement assets/intro.mp4.
+
+--- 3.13.1 ---
+Fiches film / saga : si aucune image d'arrière-plan n'est disponible (ou si elle ne se charge pas), l'affiche du film (floutée) est utilisée à la place de la fumée rouge. Pour une saga, les autres films sont aussi essayés pour trouver un arrière-plan.
+
+--- 3.13.2 ---
+Fiches film / série / saga : la fumée rouge n'est plus affichée par-dessus l'image d'arrière-plan (l'image du film est nette). La fumée reste sur les autres pages.
+
+--- 3.13.3 ---
+Animation d'ouverture : nouvelle version de la vidéo (format 16:9 d'origine, 1080p, meilleure qualité d'image).
+
+
+== 3.14.0 - Télécommande vocale ==
+Sur le téléphone : ouvrir http://<IP-du-PC>:<port>/#/remote (même profil que la TV), la TV doit être ouverte dans TBSA.
+Appuyer sur le micro du clavier, dicter, puis Envoyer. Exemples :
+ - "Mets-moi Terminator 1" / "mets la série Breaking Bad" -> ouvre la fiche
+ - "Lance le film", "pause", "reprends", "lance la bande-annonce"
+ - "Chapitre suivant", "chapitre précédent", "chapitre 3"
+ - "Avance de 10 minutes", "recule de 30 secondes", "retour", "accueil"
+Limites : bibliothèque locale uniquement (pas l'IPTV).
+
+3.14.0 (ajout) : chaînes IPTV à la voix : "mets France 2", "passe sur TF1", "mets la chaîne Canal plus". Si aucun film ne correspond, la chaîne est cherchée (Xtream + M3U).
+
+3.14.1 : catégories IPTV (TV en direct, Films, Séries, M3U) triées A→Z automatiquement ; bouton "Classer les catégories" pour les ordonner à la main (OK sur une catégorie, puis ◀ ▶) ; la catégorie choisie est mémorisée au retour et au redémarrage.
+
+3.14.2 : classement des catégories IPTV sans recharger la page (fin du freeze).
+
+3.14.3 : télécommande vocale par requête légère toutes les 2 s (plus de connexion maintenue qui ralentissait le stick) ; listes IPTV de 120 titres à la fois sur la TV.
+
+3.15.0 : IPTV - les categories sont dans une seule case "Categorie : ..." ; un clic ouvre une liste verticale (haut/bas, OK). "Classer" : OK sur une categorie puis haut/bas pour la deplacer ; "A->Z" remet l ordre alphabetique.

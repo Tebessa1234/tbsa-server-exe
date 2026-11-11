@@ -122,3 +122,11 @@ PROBLEMES COURANTS
   - "Serveur introuvable" : PC allume, TBSA-Serveur lance, meme Wi-Fi, pare-feu autorise (autoriser-pare-feu.bat).
   - Affichage deforme / ecran noir : mettez a jour le composant "Android System WebView" (Google Play) ou le
     systeme du stick (Fire TV : Parametres > Ma Fire TV > A propos > Rechercher une mise a jour).
+
+MISE A JOUR SANS DESINSTALLER (a partir de la version 1.4)
+ 1. Fabriquez le nouvel APK avec GitHub comme d'habitude, puis copiez-le sous le nom  TBSA-Serveur.apk  dans le dossier
+    %APPDATA%\TBSA-Serveur  (ou a cote de TBSA-Serveur.exe), en remplacant l'ancien.
+ 2. Au prochain lancement de TBSA sur le stick, une fenetre "Mise a jour de TBSA" apparait : choisissez "Installer".
+    L'application se met a jour par-dessus l'ancienne (reglages conserves), comme dans Plex.
+ 3. La toute premiere fois, le stick demande d'autoriser TBSA a installer des applications : activez l'option, puis relancez TBSA.
+ (La version 1.4 elle-meme s'installe une derniere fois comme avant ; les suivantes se mettent a jour toutes seules.)
