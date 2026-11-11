@@ -991,9 +991,9 @@ function musicBtn() {
 }
 
 /* ===== Télécommande vocale (téléphone → télé) ===== */
-function remoteInit() {   // la télé (mode TV) reçoit les ordres envoyés depuis le téléphone
-  if (S.rem || !S.me || typeof EventSource === 'undefined' || !document.documentElement.classList.contains('tv')) return;
-  try { var es = new EventSource('/api/remote/events'); S.rem = es; es.onmessage = function (e) { try { remoteDo(JSON.parse(e.data)); } catch (x) {} }; } catch (e) {}
+function remoteInit() {   // la télé (mode TV) vérifie toutes les 2 s les ordres du téléphone (requête légère)
+  if (S.rem || !S.me || !document.documentElement.classList.contains('tv')) return; S.rem = 1;
+  var tick = async function () { if (!document.hidden && S.me) { try { var r = await api('/api/remote/poll'); (r.q || []).forEach(function (c) { try { remoteDo(c); } catch (x) {} }); } catch (e) {} } setTimeout(tick, 2000); }; tick();
 }
 function remoteDo(c) {
   if (c.say) toast('🎤 ' + c.say, 3500);
@@ -1687,7 +1687,7 @@ function catSorted(key, cats) {
 var CATORD = { key: null, grab: null, redo: null, cats: null };
 function catMove(d) {
   if (!CATORD.key || CATORD.grab == null) return; var ids = catSorted(CATORD.key, CATORD.cats).map(function (c) { return String(c[0]); }), i = ids.indexOf(String(CATORD.grab)), j = i + d;
-  if (i < 0 || j < 0 || j >= ids.length) return; var t = ids[i]; ids[i] = ids[j]; ids[j] = t; catOrdSet(CATORD.key, ids); CATORD.keepFocus = true; CATORD.redo();
+  if (i < 0 || j < 0 || j >= ids.length) return; var t = ids[i]; ids[i] = ids[j]; ids[j] = t; catOrdSet(CATORD.key, ids); CATORD.keepFocus = true; CATORD.rebuild();
 }
 document.addEventListener('keydown', function (e) {
   if (CATORD.key && CATORD.grab != null && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); e.stopPropagation(); catMove(e.key === 'ArrowLeft' ? -1 : 1); }
@@ -1696,17 +1696,18 @@ function catPills(key, cats, F, max, redo, fav) {
   var wrap = el('div'), mode = CATORD.mode === key;
   if (!F._ld) { F._ld = 1; try { var s = localStorage.getItem('tbsa.fc.' + key); if (s !== null && !F.cat) F.cat = s; } catch (e) {} }
   var sorted = catSorted(key, cats), head = [['', 'Toutes']]; if (fav && S.st.favCh.length) head.push(['__fav', '★ Favoris']);
-  CATORD.key = key; CATORD.cats = cats; CATORD.redo = redo; if (!mode) CATORD.grab = null;
+  var rebuild = function () { var n = catPills(key, cats, F, max, redo, fav); wrap.replaceWith(n); };
+  CATORD.key = key; CATORD.cats = cats; CATORD.rebuild = rebuild; if (!mode) CATORD.grab = null;
   wrap.append(pillsBar(head.concat(sorted), mode ? CATORD.grab : F.cat, function (id) {
-    if (mode) { if (id === '' || id === '__fav') return; CATORD.grab = (CATORD.grab === id) ? null : id; CATORD.keepFocus = true; redo(); return; }
+    if (mode) { if (id === '' || id === '__fav') return; CATORD.grab = (CATORD.grab === id) ? null : id; CATORD.keepFocus = true; rebuild(); return; }
     F.cat = id; F.max = max; try { localStorage.setItem('tbsa.fc.' + key, id); } catch (e) {} CATORD.keepFocus = true; redo();
   }));
   var bar = el('div', 'bar'), mk = function (t, f, cls) { var b = el('button', 'btn sm ' + (cls || ''), t); b.onclick = f; bar.append(b); return b; };
-  if (!mode) mk('⇅ Classer les catégories', function () { CATORD.mode = key; CATORD.grab = null; redo(); }, 'ghost');
+  if (!mode) mk('⇅ Classer les catégories', function () { CATORD.mode = key; CATORD.grab = null; rebuild(); }, 'ghost');
   else {
     bar.append(el('span', 'msg', CATORD.grab == null ? 'Choisissez une catégorie (OK), puis ◀ ▶ pour la déplacer.' : 'Déplacez avec ◀ ▶ de la télécommande ou les boutons.'));
     mk('◀ Monter', function () { catMove(-1); }); mk('▶ Descendre', function () { catMove(1); });
-    mk('A→Z auto', function () { catOrdSet(key, []); CATORD.grab = null; redo(); }, 'ghost'); mk('✓ Terminé', function () { CATORD.mode = null; CATORD.grab = null; redo(); }, 'red');
+    mk('A→Z auto', function () { catOrdSet(key, []); CATORD.grab = null; rebuild(); }, 'ghost'); mk('✓ Terminé', function () { CATORD.mode = null; CATORD.grab = null; rebuild(); }, 'red');
   }
   wrap.append(bar);
   if (CATORD.keepFocus) { CATORD.keepFocus = false; setTimeout(function () { var e = wrap.querySelector('.chip.on'); if (e) { try { e.focus({ preventScroll: true }); } catch (x) {} } }, 0); }
@@ -1742,14 +1743,15 @@ ROUTES.m3u = function (v) {
     return { cats: Object.keys(g).sort().map(function (x) { return [x, x]; }), all: l.map(function (c) { return { id: 'm' + c.n, n: c.n, name: c.name, logo: c.logo, num: c.n + 1, cat: c.group, group: c.group, src: '/m3u/' + c.n, hls: c.hls }; }) };
   } });
 };
+function XTMAX() { return document.documentElement.classList.contains('tv') ? 120 : 240; }
 function xtPosters(key, title, catAct, listAct, mk) {
   return async function (v) {
-    var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: 240 }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
+    var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: XTMAX() }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
     try { var r = await Promise.all([xt(catAct), xt(listAct)]); cats = r[0]; list = r[1]; if (!Array.isArray(cats) || !Array.isArray(list)) throw 0; cats = azSort(cats, function (x) { return x.category_name; }); list = azSort(list, function (x) { return x.name; }); } catch (e) { v.append(el('div', 'emp', 'Impossible de charger le catalogue IPTV. Vérifiez les Réglages.')); return; }
-    v.append(catPills(key, cats.map(function (c) { return [c.category_id, c.category_name]; }), F, 240, function () { ROUTES[key](v); }, false));
+    v.append(catPills(key, cats.map(function (c) { return [c.category_id, c.category_name]; }), F, XTMAX(), function () { ROUTES[key](v); }, false));
     var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '240px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
-    var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += 240; draw(); }; m.append(b); box.append(m); } };
-    var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = 240; draw(); }, 200); }; draw();
+    var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += XTMAX(); draw(); }; m.append(b); box.append(m); } };
+    var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = XTMAX(); draw(); }, 200); }; draw();
   };
 }
 ROUTES.vod = xtPosters('vod', 'Films IPTV', 'get_vod_categories', 'get_vod_streams', function (x) { return card({ t: x.name, sub: x.rating && +x.rating ? '★ ' + (+x.rating).toFixed(1) : '', poster: x.stream_icon, w: isW('xv|' + x.stream_id), pct: pctOf('xv|' + x.stream_id), href: '#/xvod/' + x.stream_id }); });
