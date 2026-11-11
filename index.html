@@ -58,7 +58,7 @@ label.fld{display:block;color:var(--mu);font-size:calc(13 * var(--u));margin:cal
 .hero{position:relative;min-height:74vh;display:flex;align-items:flex-end;padding:0 4vw calc(90 * var(--u));margin-bottom:calc(-60 * var(--u));overflow:hidden}
 .hb{position:absolute;top:0;right:0;bottom:0;left:0;z-index:0;background-size:cover;background-position:center 18%;-webkit-mask-image:linear-gradient(180deg,#000 52%,transparent 100%);mask-image:linear-gradient(180deg,#000 52%,transparent 100%)}
 .hb::before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(11,11,12,.97) 0%,rgba(11,11,12,.74) 38%,rgba(11,11,12,.1) 80%)}
-.hb::after{content:"";position:absolute;top:0;right:0;bottom:0;left:0;background:url(/assets/smoke.jpg) center/cover;mix-blend-mode:screen;opacity:.17}
+body.hd::before{opacity:0}
 .dh>.hb{position:absolute;z-index:0}
 .hero .in{position:relative;z-index:1;max-width:calc(620 * var(--u))}
 .hero h1{font-size:calc(64 * var(--u));font-size:clamp(calc(34 * var(--u)),5vw,calc(64 * var(--u)));font-weight:900;line-height:1.02;text-shadow:0 calc(3 * var(--u)) calc(24 * var(--u)) rgba(0,0,0,.7)}
@@ -542,6 +542,7 @@ async function pollScan(n) {
 
 /* ===== Routeur ===== */
 function route() {
+  document.body.classList.remove('hd');
   if (!S.me || S.loginOpen) return; stopTheme(); clearInterval(S.actT);
   var h = (location.hash || '#/home').replace(/^#\/?/, ''), parts = h.split('/').map(function (x) { try { return decodeURIComponent(x); } catch (e) { return x; } }), name = parts[0] || 'home', tk = ++S.rt;
   $$('#nav a').forEach(function (a) { a.classList.toggle('on', a.dataset.r === activeTab(name)); });
@@ -847,14 +848,20 @@ async function recsRows(v, id, m) {
     if (tg) { var inC = allMedia().filter(function (x) { return x.tags.indexOf(tg) >= 0 && x.href !== m.href; }); if (inC.length) v.append(rowx('Même collection · ' + tg, inC.map(function (x) { return mCard(x); }))); }
   } catch (e) {}
 }
+function heroBgFix(h, bg, poster) {   /* pas d'arrière-plan (ou image qui ne charge pas) : on utilise l'affiche, floutée, plutôt que la fumée */
+  var hb = h.querySelector('.hb'); if (!hb) return;
+  var usePoster = function () { if (!poster) return; hb.style.backgroundImage = 'url(\'' + poster + '\')'; hb.style.filter = 'blur(12px) saturate(1.15)'; hb.style.transform = 'scale(1.12)'; };
+  if (!bg) usePoster(); else { var im = new Image(); im.onerror = usePoster; im.src = bg; }
+}
 function heroDetail(f, m, acts) {
+  document.body.classList.add('hd');
   var h = el('div', 'dh'), bg = f.backdrop || m.bd || '';
   var run = m.kind === 'movie' ? (f.runtime ? fmtRun(f.runtime) : '') : (f.runtime ? fmtRun(f.runtime) + ' / épisode' : '');
   h.innerHTML = '<div class="hb"' + (bg ? ' style="background-image:url(\'' + esc(bg) + '\')"' : '') + '></div><div class="dposter">' + (m.poster ? '<img src="' + esc(m.poster) + '" alt="">' : '') + '</div><div class="dinfo"><h1>' + esc(m.t) + '</h1><div class="meta">' + (f.rating ? '<span class="rate">★ ' + (+f.rating).toFixed(1) + '</span>' : '') + (m.y && m.kind !== 'saga' ? '<span>' + m.y + '</span>' : '') + (f.cert ? '<span class="cert">' + esc(f.cert) + '</span>' : '') + (run ? '<span>' + run + '</span>' : '') + (m.kind === 'show' ? '<span>' + m.n + ' épisode' + (m.n > 1 ? 's' : '') + '</span>' : '') + (m.kind === 'saga' ? '<span>' + m.n + ' films' + (m.items[0].year && m.items[m.n - 1].year ? ' · ' + m.items[0].year + ' – ' + m.items[m.n - 1].year : '') + '</span>' : '') + (f.status && m.kind === 'show' ? '<span>' + esc(f.status) + '</span>' : '') + '</div>' +
     '<div class="chips" style="margin-bottom:6px">' + (f.genres || []).map(function (g) { return '<span class="chip">' + esc(g) + '</span>'; }).join('') + (m.tags || []).filter(function (t) { return (f.genres || []).indexOf(t) < 0; }).map(function (t) { return '<span class="chip" style="border-color:#7a0409">' + esc(t) + '</span>'; }).join('') + '</div>' +
     (f.tagline ? '<div class="tag">« ' + esc(f.tagline) + ' »</div>' : '') + '<p class="ov-text">' + esc(f.overview || 'Aucun résumé disponible.' + (S.me.admin && !S.cfg.tmdbSet ? ' Ajoutez une clé TMDB dans Réglages pour récupérer résumés, affiches et casting.' : '')) + '</p>' +
     '<div class="crew">' + tagsLine(f.directors, m.kind === 'show' ? 'Création' : 'Réalisation') + tagsLine(f.writers, 'Scénario') + tagsLine(f.countries, 'Pays') + '</div><div class="acts"></div></div>';
-  acts(h); var ab = $('.acts', h); if (ab && m.ref) { ab.parentNode.insertBefore(starBar(m), ab); if (m.kind === 'movie' || m.kind === 'show') { var tb = actBtn('Bande-annonce', 'ghost', function () { playTrailer(m); }, 'play'); ab.insertBefore(tb, ab.children[1] || null); if (S.me.admin) { var tb2 = actBtn('Modifier la bande-annonce', 'ghost', function () { trailerDlg(m); }); ab.insertBefore(tb2, tb.nextSibling); } } } return h;
+  acts(h); var ab = $('.acts', h); if (ab && m.ref) { ab.parentNode.insertBefore(starBar(m), ab); if (m.kind === 'movie' || m.kind === 'show') { var tb = actBtn('Bande-annonce', 'ghost', function () { playTrailer(m); }, 'play'); ab.insertBefore(tb, ab.children[1] || null); if (S.me.admin) { var tb2 = actBtn('Modifier la bande-annonce', 'ghost', function () { trailerDlg(m); }); ab.insertBefore(tb2, tb.nextSibling); } } } heroBgFix(h, bg, m.poster); return h;
 }
 async function playTrailer(m) {
   var r; try { r = await api('/api/trailer/' + m.id); } catch (e) { toast(e.message); return; }
@@ -1041,7 +1048,7 @@ ROUTES.show = async function (v, p) {
 ROUTES.saga = async function (v, p) {
   var id = p[0], items = sagaItems(id); v.innerHTML = '';
   if (!items.length) { v.innerHTML = '<div class="emp">Saga introuvable (la bibliothèque a peut-être changé).</div>'; return; }
-  var m = mSaga(id, items), f0 = null; try { f0 = await api('/api/item/' + items[0].id); } catch (e) {}
+  var m = mSaga(id, items), f0 = null; try { f0 = await api('/api/item/' + items[0].id); } catch (e) {} if (!(items[0].col && items[0].col.b) && !(f0 && f0.backdrop) && !m.bd) { for (var si = 1; si < Math.min(items.length, 5) && !(f0 && f0.backdrop); si++) { try { f0 = await api('/api/item/' + items[si].id); } catch (e) {} } }
   var f = { backdrop: (items[0].col && items[0].col.b) || (f0 && f0.backdrop) || m.bd || '', rating: m.rating, genres: m.genres, overview: 'Saga de ' + items.length + ' films, dans l’ordre de sortie : ' + items.map(function (i) { return i.name || i.title; }).join(' · ') + '.', tagline: '', cert: '', runtime: 0, directors: [], writers: [], countries: [], status: '' };
   v.append(heroDetail(f, m, function (h) {
     var a = $('.acts', h), allW = items.every(function (i) { return isW(i.k); }), some = items.some(function (i) { return isW(i.k); }), next = items.filter(function (i) { return !isW(i.k); })[0];
