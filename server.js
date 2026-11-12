@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.17.0', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.17.2', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -545,7 +545,7 @@ function dlRestore() {
 }
 function dlPublic(j) { return { id: j.id, title: j.title, kind: j.kind, state: j.state, got: j.got || 0, total: j.total || 0, pct: j.pct || 0, speed: j.speed || 0, file: j.file, err: j.err || '', canPause: !j.yt }; }
 function dlPump() {
-  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; j.busy = true; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlSaveT = 0; dlSave(); dlPump(); }).finally(() => { j.busy = false; }); }
+  while (DLJ.filter(j => j.state === 'run').length < Math.max(1, Math.min(4, +cfg.dlConc || 1))) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; j.busy = true; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlSaveT = 0; dlSave(); dlPump(); }).finally(() => { j.busy = false; }); }
 }
 function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); j.after = mkAfter(j); DLJ.push(j); dlSaveT = 0; dlSave(); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
 const DL_UA = 'VLC/3.0.20 LibVLC/3.0.20';
