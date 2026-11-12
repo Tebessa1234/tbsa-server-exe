@@ -511,8 +511,10 @@ function buildHeader() {
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
   tabs.push(['list', 'Ma liste']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
   $('#top').innerHTML = '<a class="logo" href="#/home">' + BRAND + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
-    (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
-  $('#bs').onclick = function () { go('#/search'); }; if ($('#bscan')) $('#bscan').onclick = scanNow; $('#bu').onclick = userMenu;
+    (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#e50914;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
+  $('#bs').onclick = function () { go('#/search'); };
+  if ($('#bdl')) { $('#bdl').onclick = function () { dlDlg(); };
+    if (!S.dlT) S.dlT = setInterval(async function () { var b = $('#bdn'); if (!b || document.hidden || !S.me) return; try { var r = await api('/api/dl-list'), n = (r.jobs || []).filter(function (j) { return j.state === 'run' || j.state === 'queue'; }).length; b.textContent = n; b.style.display = n ? 'block' : 'none'; } catch (e) {} }, 8000); } if ($('#bscan')) $('#bscan').onclick = scanNow; $('#bu').onclick = userMenu;
 }
 function activeTab(n) { return { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', person: 'home', search: '', settings: '', activity: '' }[n] !== undefined ? { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', person: 'home', search: '', settings: '', activity: '' }[n] : n; }
 function userMenu() {
