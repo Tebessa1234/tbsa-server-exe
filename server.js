@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.16.1', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.17.0', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -534,18 +534,18 @@ const mkAfter = j => j.trk ? () => { dropOvFile(j.trk); if (j.trc) OVT[j.trk] = 
 let dlSaveT = 0;
 function dlSave() {   // les téléchargements non terminés survivent à un redémarrage du serveur
   const n = Date.now(); if (n - dlSaveT < 1500) return; dlSaveT = n;
-  const l = DLJ.filter(j => j.state === 'run' || j.state === 'queue').map(j => ({ id: j.id, kind: j.kind, title: j.title, url: j.url, yt: j.yt, file: j.file, total: j.total, segs: j.segs, trk: j.trk, trc: j.trc, trt: j.trt }));
+  const l = DLJ.filter(j => j.state === 'run' || j.state === 'queue' || j.state === 'pause').map(j => ({ paused: j.state === 'pause', id: j.id, kind: j.kind, title: j.title, url: j.url, yt: j.yt, file: j.file, total: j.total, segs: j.segs, trk: j.trk, trc: j.trc, trt: j.trt }));
   try { fs.writeFileSync(DLFILE, JSON.stringify(l)); } catch {}
 }
 function dlRestore() {
   let l = []; try { l = JSON.parse(fs.readFileSync(DLFILE, 'utf8')); } catch {}
-  for (const o of l) { if (!o || !o.file || DLJ.some(x => x.file === o.file && x.state !== 'error' && x.state !== 'cancel')) continue; const j = Object.assign({ state: 'queue', got: 0 }, o); j.id = ++dlSeq; j.after = mkAfter(j); DLJ.push(j); }
+  for (const o of l) { if (!o || !o.file || DLJ.some(x => x.file === o.file && x.state !== 'error' && x.state !== 'cancel')) continue; const j = Object.assign({ state: 'queue', got: 0 }, o); if (o.paused) j.state = 'pause'; delete j.paused; j.id = ++dlSeq; j.after = mkAfter(j); DLJ.push(j); }
   if (l.length) log('Téléchargements repris : ' + l.length);
   dlPump();
 }
-function dlPublic(j) { return { id: j.id, title: j.title, kind: j.kind, state: j.state, got: j.got || 0, total: j.total || 0, pct: j.pct || 0, speed: j.speed || 0, file: j.file, err: j.err || '' }; }
+function dlPublic(j) { return { id: j.id, title: j.title, kind: j.kind, state: j.state, got: j.got || 0, total: j.total || 0, pct: j.pct || 0, speed: j.speed || 0, file: j.file, err: j.err || '', canPause: !j.yt }; }
 function dlPump() {
-  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlSaveT = 0; dlSave(); dlPump(); }); }
+  while (DLJ.filter(j => j.state === 'run').length < 2) { const j = DLJ.find(x => x.state === 'queue'); if (!j) break; j.state = 'run'; j.busy = true; (j.yt ? dlYt(j) : dlHttp(j, j.url)).catch(e => { if (j.state === 'run') { j.state = 'error'; j.err = String(e && e.message || e); } dlSaveT = 0; dlSave(); dlPump(); }).finally(() => { j.busy = false; }); }
 }
 function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); j.after = mkAfter(j); DLJ.push(j); dlSaveT = 0; dlSave(); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
 const DL_UA = 'VLC/3.0.20 LibVLC/3.0.20';
@@ -575,7 +575,7 @@ async function dlHttp(j, url) {
     { const { r, rq } = await httpGet(url, { Range: 'bytes=0-0' }); const cr = String(r.headers['content-range'] || '').match(/\/(\d+)$/);
       if (r.statusCode === 206 && cr) { total = +cr[1]; ranged = true; } else if (r.statusCode === 200) { total = +r.headers['content-length'] || 0; } else { r.resume(); rq.destroy(); throw new Error('Le serveur a répondu ' + r.statusCode); }
       r.resume(); rq.destroy(); }
-    const N = ranged && total > 8e6 ? Math.max(1, Math.min(16, +cfg.dlParts || 6)) : 1;
+    const N = ranged && total > 8e6 ? Math.max(1, Math.min(32, +cfg.dlParts || 16)) : 1;
     const resume = ranged && total && j.total === total && Array.isArray(j.segs) && j.segs.length && fs.existsSync(part) && fs.statSync(part).size === total;
     j.total = total; j.t0 = Date.now(); fd = fs.openSync(part, resume ? 'r+' : 'w'); if (total && !resume) { try { fs.ftruncateSync(fd, total); } catch {} }
     let segs;
@@ -606,7 +606,7 @@ async function dlHttp(j, url) {
     if (!live()) throw new Error('Annulé');
     if (total && j.got < total) throw new Error('Téléchargement incomplet');
     cleanup(); fs.renameSync(part, j.file); j.state = 'done'; j.pct = 100; j.speed = 0; j.segs = null; if (j.after) j.after(); dlSaveT = 0; dlSave(); dlPump();
-  } catch (e) { cleanup(); try { fs.unlinkSync(part); } catch {} throw e; }
+  } catch (e) { cleanup(); if (j.state !== 'pause') { try { fs.unlinkSync(part); } catch {} } throw e; }
 }
 /* yt-dlp : cherché à côté du programme / dans les données / dans le PATH ; téléchargé automatiquement au besoin */
 let YTDLP = null;
@@ -871,8 +871,18 @@ SRV = http.createServer(async (req, res) => {
       } else return J(req, res, { error: 'Type inconnu' }, 400);
       return ok({ n: made.length, dir: root });
     }
-    if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue')) { const was = j.state; j.state = 'cancel'; dlSaveT = 0; try { if (j.reqs) for (const q of j.reqs) q.destroy(); if (j.proc) j.proc.kill(); } catch {} dlSave(); if (was === 'run') dlPump(); } return ok(); }
-    if (p === '/api/dl-clear' && POST) { if (!need()) return; for (let n = DLJ.length - 1; n >= 0; n--) if (!['run', 'queue'].includes(DLJ[n].state)) DLJ.splice(n, 1); return ok(); }
+    if ((p === '/api/dl-pause' || p === '/api/dl-resume') && POST) {
+      if (!need()) return; const b = JSON.parse(await body(req) || '{}'), pause = p === '/api/dl-pause';
+      const resumeJob = (j, n) => { if (j.state !== 'pause') return; if (j.busy && n < 40) return setTimeout(() => resumeJob(j, n + 1), 250); j.state = 'queue'; dlSaveT = 0; dlSave(); dlPump(); };
+      for (const j of DLJ) {
+        if (!b.all && j.id !== +b.id) continue;
+        if (pause && (j.state === 'run' || j.state === 'queue') && !j.yt) { const was = j.state; j.state = 'pause'; j.speed = 0; try { if (j.reqs) for (const q of j.reqs) q.destroy(); } catch {} dlSaveT = 0; dlSave(); if (was === 'run') dlPump(); }
+        else if (!pause && j.state === 'pause') resumeJob(j, 0);
+      }
+      return ok();
+    }
+    if (p === '/api/dl-cancel' && POST) { if (!need()) return; const b = JSON.parse(await body(req)); const j = DLJ.find(x => x.id === +b.id); if (j && (j.state === 'run' || j.state === 'queue' || j.state === 'pause')) { const was = j.state; j.state = 'cancel'; if (was === 'pause') { try { fs.unlinkSync(j.file + '.part'); } catch {} } dlSaveT = 0; try { if (j.reqs) for (const q of j.reqs) q.destroy(); if (j.proc) j.proc.kill(); } catch {} dlSave(); if (was === 'run') dlPump(); } return ok(); }
+    if (p === '/api/dl-clear' && POST) { if (!need()) return; for (let n = DLJ.length - 1; n >= 0; n--) if (!['run', 'queue', 'pause'].includes(DLJ[n].state)) DLJ.splice(n, 1); return ok(); }
     if (p === '/api/dl-config' && POST) {
       if (!need()) return; const b = JSON.parse(await body(req));
       for (const [f, key] of [['dir', 'dlDir'], ['films', 'dlFilms'], ['series', 'dlSeries'], ['trailers', 'dlTrailers']]) {

@@ -913,17 +913,27 @@ function pickVideo(itemId) {
   });
 }
 function dlDlg() {
-  var o = openOv('<div class="dh2"><span>Téléchargements sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><div data-r="dir"></div><h3 style="margin:12px 0 6px">Téléchargements</h3><div data-r="jobs"></div></div></div><div class="df"><button class="btn ghost" data-a="clr">Effacer la liste</button><span></span><button class="btn red" data-a="s">Fermer</button></div>');
+  var o = openOv('<div class="dh2"><span>Téléchargements sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dmain" style="flex:1"><div data-r="dir"></div><h3 style="margin:12px 0 6px">Téléchargements</h3><div data-r="jobs"></div></div></div><div class="df"><button class="btn ghost" data-a="clr">Effacer la liste</button><span><button class="btn ghost" data-a="pa">⏸ Tout en pause</button> <button class="btn ghost" data-a="ra">▶ Tout reprendre</button> <button class="btn red" data-a="s">Fermer</button></span></div>');
   var jobs = $('[data-r=jobs]', o.dlg), dir = $('[data-r=dir]', o.dlg), alive = true, c0 = o.close; o.close = function () { alive = false; c0(); };
   $('[data-a=x]', o.dlg).onclick = $('[data-a=s]', o.dlg).onclick = function () { o.close(); };
+  $('[data-a=pa]', o.dlg).onclick = function () { post('/api/dl-pause', { all: true }).then(function () { setTimeout(tick, 300); }); };
+  $('[data-a=ra]', o.dlg).onclick = function () { post('/api/dl-resume', { all: true }).then(function () { setTimeout(tick, 300); }); };
   $('[data-a=clr]', o.dlg).onclick = async function () { await post('/api/dl-clear', {}); tick(); };
   async function tick() {
     if (!alive) return; var r; try { r = await api('/api/dl-list'); } catch (e) { return; }
-    if (!dir.dataset.k || dir.dataset.k !== JSON.stringify([r.dir, r.films, r.series, r.trailers])) { dir.dataset.k = JSON.stringify([r.dir, r.films, r.series, r.trailers]); dir.innerHTML = ''; [['Dossier principal', r.dir, 'dir'], ['Films', r.films, 'films'], ['Séries', r.series, 'series'], ['Bandes-annonces', r.trailers || 'Dans le dossier du film (automatique)', 'trailers']].forEach(function (x) { var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + x[0] + '</h3><div class="msg" style="font-size:13px;word-break:break-all">' + esc(x[1]) + '</div></div>'); d.style.cssText = 'padding:8px 14px;margin-bottom:6px'; d.tabIndex = 0; d.onclick = async function () { var f = await pickFolder(x[1].indexOf('automatique') > 0 ? '' : x[1]); if (f === null) return; var b = {}; b[x[2]] = f; try { await post('/api/dl-config', b); toast('Dossier enregistré'); } catch (e) { toast(e.message); } tick(); }; d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } }; dir.append(d); }); } var ST = { queue: 'En attente', run: 'En cours', done: 'Terminé ✓', error: 'Erreur', cancel: 'Annulé' };
+    if (!dir.dataset.k || dir.dataset.k !== JSON.stringify([r.dir, r.films, r.series, r.trailers])) { dir.dataset.k = JSON.stringify([r.dir, r.films, r.series, r.trailers]); dir.innerHTML = ''; [['Dossier principal', r.dir, 'dir'], ['Films', r.films, 'films'], ['Séries', r.series, 'series'], ['Bandes-annonces', r.trailers || 'Dans le dossier du film (automatique)', 'trailers']].forEach(function (x) { var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + x[0] + '</h3><div class="msg" style="font-size:13px;word-break:break-all">' + esc(x[1]) + '</div></div>'); d.style.cssText = 'padding:8px 14px;margin-bottom:6px'; d.tabIndex = 0; d.onclick = async function () { var f = await pickFolder(x[1].indexOf('automatique') > 0 ? '' : x[1]); if (f === null) return; var b = {}; b[x[2]] = f; try { await post('/api/dl-config', b); toast('Dossier enregistré'); } catch (e) { toast(e.message); } tick(); }; d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } }; dir.append(d); }); } var ST = { queue: 'En attente', run: 'En cours', done: 'Terminé ✓', error: 'Erreur', cancel: 'Annulé', pause: 'En pause ⏸' };
     jobs.innerHTML = r.jobs.length ? '' : '<p class="msg">Aucun téléchargement.</p>';
     r.jobs.forEach(function (j) {
       var d = el('div', 'epr', '<div class="tx" style="width:100%"><h3>' + esc(j.title) + '</h3><div class="msg" style="font-size:13px">' + ST[j.state] + (j.state === 'run' ? ' · ' + (j.total ? j.pct + ' % · ' + fmtMB(j.got) + ' / ' + fmtMB(j.total) : j.kind === 'bande-annonce' ? j.pct + ' %' : fmtMB(j.got)) + (j.speed ? ' · ' + (j.speed / 1e6).toFixed(1) + ' Mo/s' : '') : '') + (j.err ? ' : ' + esc(j.err) : '') + '</div>' + (j.state === 'run' ? '<div class="prog" style="position:static;margin-top:6px"><i style="width:' + j.pct + '%"></i></div>' : '') + '</div>');
-      d.style.cssText = 'padding:10px 14px;margin-bottom:6px'; if (j.state === 'run' || j.state === 'queue') { d.tabIndex = 0; d.onclick = function () { post('/api/dl-cancel', { id: j.id }).then(tick); toast('Annulé'); }; d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } }; d.title = 'Appuyer pour annuler'; }
+      d.style.cssText = 'padding:10px 14px;margin-bottom:6px';
+      if (j.state === 'run' || j.state === 'queue' || j.state === 'pause') {
+        var bx = el('div'); bx.style.cssText = 'display:flex;gap:8px;margin-top:8px'; var tx = $('.tx', d);
+        var mkb = function (t, f, cls) { var b = el('button', 'btn sm ' + (cls || 'ghost'), t); b.onclick = function (e) { e.stopPropagation(); f(); }; bx.append(b); };
+        if (j.state === 'pause') mkb('▶ Reprendre', function () { post('/api/dl-resume', { id: j.id }).then(function () { setTimeout(tick, 300); }); }, 'red');
+        else if (j.canPause) mkb('⏸ Pause', function () { post('/api/dl-pause', { id: j.id }).then(function () { setTimeout(tick, 300); }); });
+        mkb('✕ Annuler', function () { post('/api/dl-cancel', { id: j.id }).then(tick); toast('Annulé'); });
+        tx.append(bx);
+      }
       jobs.append(d);
     });
     setTimeout(tick, 1500);
