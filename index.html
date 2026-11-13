@@ -22,7 +22,8 @@ h1,h2,h3{margin:0}
 /* En-tête */
 #top{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:calc(22 * var(--u));padding:calc(14 * var(--u)) 4vw;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:background .25s}
 #top.solid{background:rgba(11,11,12,.96);box-shadow:0 calc(2 * var(--u)) calc(18 * var(--u)) rgba(0,0,0,.6)}
-.logo{font-family:"Cambria Math","Segoe UI Symbol","Noto Sans Math","STIX Two Math","Apple Symbols","DejaVu Sans",serif;font-weight:400;font-size:calc(32 * var(--u));letter-spacing:calc(3 * var(--u));color:var(--red);text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.5);white-space:nowrap}
+.logo{display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-weight:900;font-size:calc(26 * var(--u));letter-spacing:calc(4 * var(--u));color:var(--red);text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.45);white-space:nowrap}
+.logo .sub{color:#fff;font-weight:600;font-size:.36em;letter-spacing:.3em;margin-top:.25em;text-shadow:none;opacity:.92}
 .sechead{font-size:calc(26 * var(--u));font-weight:900;padding:calc(4 * var(--u)) calc(14 * var(--u));margin:calc(38 * var(--u)) 4vw 0;border-left:calc(5 * var(--u)) solid var(--red)}
 .scanning #bscan svg,.scanning .scanbtn svg{animation:sp .9s linear infinite}
 .logo small{color:var(--tx);font-weight:600;font-size:calc(13 * var(--u));letter-spacing:calc(2 * var(--u));margin-left:calc(6 * var(--u));opacity:.8}
@@ -208,7 +209,7 @@ body.tv .rowx .arr{display:none}
 @media(hover:none){.rowx .arr{display:none}}
 @media(max-width:760px){
  :root{--cw:calc(124 * var(--u))}
- #top{gap:calc(10 * var(--u));padding:calc(10 * var(--u)) 3vw}.logo small{display:none}.logo{font-size:calc(20 * var(--u))}
+ #top{gap:calc(10 * var(--u));padding:calc(10 * var(--u)) 3vw}.logo{font-size:calc(20 * var(--u))}
  .hero{min-height:60vh;padding-bottom:calc(70 * var(--u))}
  .dh{flex-direction:column;align-items:flex-start;padding-top:calc(90 * var(--u))}.dposter{width:calc(140 * var(--u))}
  .epr .st{width:calc(120 * var(--u))}.dside{width:calc(120 * var(--u))}
@@ -302,7 +303,7 @@ function zoomBar() {   // taille des affiches : [−] curseur [+], mémorisée p
   mi.title = 'Affiches plus petites'; pl.title = 'Affiches plus grandes'; mi.onclick = function () { set(cur() - 20); }; pl.onclick = function () { set(cur() + 20); }; sl.oninput = function () { set(+sl.value); };
   w.append(el('span', 'msg', 'Affiches'), mi, sl, pl); if (isTV()) sl.style.display = 'none'; return w;
 }
-var BRAND = (function () { var fancy = '𝕿𝕭𝕾𝕬'; try { var c = document.createElement('canvas').getContext('2d'); c.font = '32px "Cambria Math","Segoe UI Symbol","Noto Sans Math","STIX Two Math","Apple Symbols","DejaVu Sans",serif'; var miss = String.fromCodePoint(0x10FFFD).repeat(4); return c.measureText(fancy).width !== c.measureText(miss).width ? fancy : 'TBSA'; } catch (e) { return 'TBSA'; } })();
+var BRAND = 'TBSA', LOGO = 'TBSA<span class="sub">MEDIA SERVER</span>';
 var isTV = function () { return document.body.classList.contains('tv'); };
 
 /* ===== Fenêtres (pile) ===== */
@@ -350,7 +351,7 @@ async function showLogin() {
   $$('.ov,.login').forEach(function (x) { x.remove(); }); S.ovs = []; $('#top').innerHTML = ''; $('#view').innerHTML = '';
   var d = await fetch('/api/users').then(function (r) { return r.json(); });
   if (d.auto && !S.noAuto) { S.loginOpen = false; await login(d.auto, ''); return; }
-  var w = el('div', 'login fade', '<div class="logo" style="font-size:60px">' + BRAND + '</div><h1>Qui regarde ?</h1><div class="profiles"></div>');
+  var w = el('div', 'login fade', '<div class="logo" style="font-size:60px">' + LOGO + '</div><h1>Qui regarde ?</h1><div class="profiles"></div>');
   d.users.forEach(function (u) {
     var p = el('div', 'prof', '<div class="av">' + esc(u.name.charAt(0).toUpperCase()) + '</div><div>' + esc(u.name) + '</div>' + (u.pin ? '<div class="lk">🔒 PIN</div>' : (u.kid ? '<div class="lk">Enfant</div>' : '')));
     p.tabIndex = 0; p.onclick = function () { u.pin ? pinPad(u, w) : login(u.id, ''); }; p.onkeydown = function (e) { if (e.key === 'Enter') p.click(); };
@@ -510,7 +511,7 @@ function buildHeader() {
   if (c.iptv.xtream) tabs.push(['live', 'TV en direct'], ['vod', 'Films IPTV'], ['series', 'Séries IPTV']);
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
   tabs.push(['list', 'Ma liste']); if (S.me.admin) tabs.push(['screen', '🖥 Écran du PC']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
-  $('#top').innerHTML = '<a class="logo" href="#/home">' + BRAND + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
+  $('#top').innerHTML = '<a class="logo" href="#/home">' + LOGO + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
     (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#e50914;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
   $('#bs').onclick = function () { go('#/search'); };
   if ($('#bdl')) { $('#bdl').onclick = function () { dlDlg(); };
