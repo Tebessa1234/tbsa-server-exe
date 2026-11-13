@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.18.0', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.18.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -800,9 +800,21 @@ SRV = http.createServer(async (req, res) => {
       const w = Math.max(320, Math.min(2560, +q.get('w') || 1280)), fps = Math.max(2, Math.min(30, +q.get('fps') || 12)), ql = Math.max(2, Math.min(20, +q.get('q') || 6));
       if (SCREEN) { try { SCREEN.kill('SIGKILL'); } catch {} SCREEN = null; }
       const src = process.platform === 'win32' ? ['-f', 'gdigrab', '-framerate', String(fps), '-draw_mouse', '1', '-i', 'desktop'] : ['-re', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=' + fps];
-      const f = spawn(FFMPEG, ['-v', 'error', ...src, '-vf', 'scale=' + w + ':-2', '-q:v', String(ql), '-f', 'mpjpeg', '-boundary_tag', 'frame', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] }); SCREEN = f;
+      const f = spawn(FFMPEG, ['-v', 'error', '-fflags', 'nobuffer', '-flags', 'low_delay', ...src, '-vf', 'scale=' + w + ':-2', '-q:v', String(ql), '-f', 'image2pipe', '-c:v', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] }); SCREEN = f;
+      try { req.socket.setNoDelay(true); } catch {}
       res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace;boundary=frame', 'Cache-Control': 'no-store', 'Connection': 'close' });
-      f.stdout.pipe(res); f.stderr.on('data', () => {}); const end = () => { try { f.kill('SIGKILL'); } catch {} if (SCREEN === f) SCREEN = null; }; res.on('close', end); f.on('close', () => { try { res.end(); } catch {} }); return;
+      let acc = Buffer.alloc(0);   // on découpe les images JPEG et on jette les anciennes si le stick n'arrive pas à suivre : pas de retard cumulé
+      f.stdout.on('data', c => {
+        acc = Buffer.concat([acc, c]);
+        for (;;) {
+          const a = acc.indexOf(Buffer.from([0xff, 0xd8])); if (a < 0) { acc = Buffer.alloc(0); break; }
+          const e = acc.indexOf(Buffer.from([0xff, 0xd9]), a + 2); if (e < 0) { if (a > 0) acc = acc.subarray(a); break; }
+          const jpg = acc.subarray(a, e + 2); acc = acc.subarray(e + 2);
+          if (res.writableLength < 1.5 * jpg.length && !res.writableNeedDrain) { res.write('--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ' + jpg.length + '\r\n\r\n'); res.write(jpg); res.write('\r\n'); }
+        }
+        if (acc.length > 8e6) acc = Buffer.alloc(0);
+      });
+      f.stderr.on('data', () => {}); const end = () => { try { f.kill('SIGKILL'); } catch {} if (SCREEN === f) SCREEN = null; }; res.on('close', end); f.on('close', () => { try { res.end(); } catch {} }); return;
     }
     if (p === '/api/remote/poll') {          // la télé (mode TV) interroge ici, très léger (pas de connexion maintenue)
       const r = RPOLL.get(me.id) || { seen: 0, q: [] }; RPOLL.set(me.id, r); r.seen = Date.now(); const q = r.q; r.q = []; return J(req, res, { q });
