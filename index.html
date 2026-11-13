@@ -509,7 +509,7 @@ function buildHeader() {
   if (has('movies')) tabs.push(['movies', 'Films']); if (has('shows')) tabs.push(['shows', 'Séries']); if (has('other')) tabs.push(['other', 'Vidéos']);
   if (c.iptv.xtream) tabs.push(['live', 'TV en direct'], ['vod', 'Films IPTV'], ['series', 'Séries IPTV']);
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
-  tabs.push(['list', 'Ma liste']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
+  tabs.push(['list', 'Ma liste']); if (S.me.admin) tabs.push(['screen', '🖥 Écran du PC']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
   $('#top').innerHTML = '<a class="logo" href="#/home">' + BRAND + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
     (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#e50914;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
   $('#bs').onclick = function () { go('#/search'); };
@@ -531,9 +531,9 @@ function prefsDlg() {
     '<label class="fld">Volume de la musique</label><input type="range" id="pv" min="0" max="100" value="' + Math.round(p.vol * 100) + '" style="width:100%;accent-color:#e50914">' +
     '<label class="fld"><input type="checkbox" id="pa" ' + (p.autonext ? 'checked' : '') + '> Lire automatiquement l’épisode suivant</label>' +
     '<label class="fld"><input type="checkbox" id="pf" ' + (p.forceAudio ? 'checked' : '') + '> Toujours convertir le son en stéréo (à activer si vous n’entendez rien sur la télé)</label><label class="fld">Sous-titres préférés</label><select id="ps"><option value="off">Aucun</option><option value="fr">Français</option><option value="en">Anglais</option></select>' +
-    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
-  $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality;
-  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); o.close(); toast('Préférences enregistrées'); };
+    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select><label class="fld">Cet appareil lit la 4K</label><select id="p4"><option value="auto">Automatique</option><option value="yes">Oui (télé 4K)</option><option value="no">Non (stick 1080p : conversion en 1080p)</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
+  $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality; $('#p4', o.dlg).value = p.res4k || 'auto';
+  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); setPref('res4k', $('#p4').value); o.close(); toast('Préférences enregistrées'); };
 }
 async function scanNow() { try { document.body.classList.add('scanning'); await post('/api/scan'); toast('Scan lancé…'); pollScan(); } catch (e) { document.body.classList.remove('scanning'); toast(e.message); } }
 async function pollScan(n) {
@@ -544,7 +544,7 @@ async function pollScan(n) {
 
 /* ===== Routeur ===== */
 function route() {
-  document.body.classList.remove('hd'); remoteInit();
+  document.body.classList.remove('hd'); if (S.scr) { try { S.scr.querySelector('img').src = ''; S.scr.remove(); } catch (e) {} S.scr = null; } remoteInit();
   if (!S.me || S.loginOpen) return; stopTheme(); clearInterval(S.actT);
   var h = (location.hash || '#/home').replace(/^#\/?/, ''), parts = h.split('/').map(function (x) { try { return decodeURIComponent(x); } catch (e) { return x; } }), name = parts[0] || 'home', tk = ++S.rt;
   $$('#nav a').forEach(function (a) { a.classList.toggle('on', a.dataset.r === activeTab(name)); });
@@ -1080,6 +1080,19 @@ function voiceParse(raw) {
   if (0) return { err: 'Je n’ai rien trouvé pour « ' + q + (n ? ' ' + n : '') + ' ».' };
   return { a: 'open', href: r.href, say: 'Ouverture : ' + r.t + (r.y ? ' (' + r.y + ')' : '') };
 }
+ROUTES.screen = async function (v) {   // écran du PC en direct sur la télé (lecture seule)
+  v.innerHTML = ''; document.body.classList.add('hd'); var ok = S.me.admin; if (!ok) { v.append(el('p', 'msg', 'Réservé à l’administrateur.')); return; }
+  var w = el('div'); w.style.cssText = 'position:fixed;inset:0;z-index:50;background:#000;display:flex;align-items:center;justify-content:center';
+  var img = el('img'); img.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain';
+  var bar = el('div'); bar.style.cssText = 'position:fixed;top:10px;right:12px;z-index:60;display:flex;gap:8px;opacity:.9';
+  var pr = { hd: [1920, 10, 7], sd: [1280, 12, 6], lo: [960, 15, 9] }, cur = 'sd';
+  var start = function () { var p = pr[cur]; img.src = '/api/screen?w=' + p[0] + '&fps=' + p[1] + '&q=' + p[2] + '&_=' + Date.now(); };
+  var mk = function (t, f) { var b = el('button', 'btn sm ghost', t); b.onclick = f; bar.append(b); return b; };
+  var qb = mk('Qualité : Normale', function () { cur = cur === 'sd' ? 'hd' : cur === 'hd' ? 'lo' : 'sd'; qb.textContent = 'Qualité : ' + (cur === 'sd' ? 'Normale' : cur === 'hd' ? 'Haute' : 'Légère'); start(); });
+  mk('✕ Fermer', function () { img.src = ''; goBack(); });
+  img.onerror = function () { setTimeout(function () { if (location.hash === '#/screen') start(); }, 1500); };
+  w.append(img, bar); document.body.append(w); S.scr = w; start(); if (isTV()) setTimeout(function () { try { bar.querySelector('button').focus(); } catch (e) {} }, 300);
+};
 ROUTES.remote = async function (v) {
   v.innerHTML = '<div style="max-width:640px;margin:0 auto;padding:16px"><h2>🎤 Télécommande vocale</h2><p class="msg" data-r="st">Connexion…</p>' +
     '<div style="display:flex;gap:8px"><input id="vq" placeholder="Dites ou tapez : « mets Terminator 1 »" style="flex:1;font-size:18px;padding:14px" autocomplete="off"><button class="btn red" id="vgo">Envoyer</button></div>' +
@@ -1342,6 +1355,10 @@ function playMedia(m) { if (m.kind === 'saga') return playSaga(m.items); if (m.k
 var LANGS_FR = { fr: 'Français', fre: 'Français', fra: 'Français', en: 'Anglais', eng: 'Anglais', es: 'Espagnol', spa: 'Espagnol', de: 'Allemand', ger: 'Allemand', deu: 'Allemand', it: 'Italien', ita: 'Italien', pt: 'Portugais', por: 'Portugais', ja: 'Japonais', jpn: 'Japonais', ru: 'Russe', rus: 'Russe', ar: 'Arabe', ara: 'Arabe', ko: 'Coréen', kor: 'Coréen', zh: 'Chinois', chi: 'Chinois', nl: 'Néerlandais', dut: 'Néerlandais' };
 var langFr = function (c) { return LANGS_FR[String(c || '').toLowerCase()] || (c && c !== 'und' ? c : ''); };
 // 'direct' | 'remux' (image copiée, son converti en stéréo AAC : léger et sans perte) | 'full' (conversion complète)
+function can4k() {   // cet appareil sait-il lire la 4K ? réglable dans Préférences (Auto = d'après la taille réelle de l'écran)
+  var m = prefs().res4k || 'auto'; if (m === 'yes') return true; if (m === 'no') return false;
+  var dpr = window.devicePixelRatio || 1, px = Math.max(screen.width || 0, screen.height || 0) * dpr; return px >= 3000;
+}
 function playPlan(d) {
   if (!d || !d.ffmpeg || !d.info) return 'direct';
   var i = d.info, v = document.createElement('video'), cont = String(i.container || ''), vi = i.video || {}, vc = vi.codec, au = i.audio || [];
@@ -1354,6 +1371,7 @@ function playPlan(d) {
   if (prefs().forceAudio && ac) audioOK = false;
   if (prefs().adelay && ac) audioOK = false;                                             // décalage du son demandé : il faut passer par la conversion
   if (dflt && au.indexOf(dflt) > 0) audioOK = false;                                    // piste audio par défaut ≠ première
+  if (isTV() && !can4k() && ((vi.h || 0) > 1100 || (vi.w || 0) > 2000)) return 'full';   // 4K : le stick ne sait pas la décoder fluidement -> conversion en 1080p sur le PC
   if (videoOK && okCont && audioOK) return 'direct';
   return h264ok ? 'remux' : 'full';
 }
@@ -1426,7 +1444,7 @@ async function planFor(d) {
   var info; try { info = await api('/api/info/' + d.id); } catch (e) { info = { subs: [], ffmpeg: false }; }
   var inf = info.info, au = inf ? inf.audio : [], dflt = au.filter(function (a) { return a.def; })[0], pl = playPlan(info), sub = null, pref = prefs().subs;
   if (pref && pref !== 'off') { var m = info.subs.filter(function (s) { return (s.lang || s.label).toLowerCase().indexOf(pref) === 0 || langFr(s.lang).toLowerCase().indexOf(pref === 'fr' ? 'fran' : pref === 'en' ? 'angl' : pref) === 0 || s.label.toLowerCase().indexOf(pref === 'fr' ? 'fran' : 'angl') === 0; }); var nf = m.filter(function (s) { return !/forc/i.test(s.label); }); sub = (nf[0] || m[0] || {}).id || null; }
-  return { info: info, dur: inf && inf.dur ? inf.dur : 0, audio: dflt ? au.indexOf(dflt) : 0, mode: pl === 'direct' ? 'direct' : 'transcode', qsel: pl === 'remux' ? 'remux' : (pl === 'full' ? (prefs().quality || 'auto') : 'orig'), sub: sub };
+  return { info: info, dur: inf && inf.dur ? inf.dur : 0, audio: dflt ? au.indexOf(dflt) : 0, mode: pl === 'direct' ? 'direct' : 'transcode', qsel: pl === 'remux' ? 'remux' : (pl === 'full' ? (isTV() && !can4k() && ['auto', '2160', '1440'].indexOf(prefs().quality || 'auto') >= 0 ? '1080' : (prefs().quality || 'auto')) : 'orig'), sub: sub };
 }
 function srcFor(d, plan, t) {
   if (plan.mode === 'direct') return d.kind === 'local' ? '/stream/' + d.id : d.src;

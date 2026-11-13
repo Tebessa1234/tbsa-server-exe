@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.17.2', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.18.0', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -549,6 +549,10 @@ function dlPump() {
 }
 function dlAdd(o) { const j = Object.assign({ id: ++dlSeq, state: 'queue', got: 0, total: 0, t0: 0 }, o); j.after = mkAfter(j); DLJ.push(j); dlSaveT = 0; dlSave(); if (DLJ.length > 200) DLJ.splice(0, DLJ.length - 200); dlPump(); return j; }
 const DL_UA = 'VLC/3.0.20 LibVLC/3.0.20';
+/* quand quelqu'un regarde un film, les téléchargements ralentissent (débit total limité) pour ne pas gêner la lecture (disque, processeur) */
+const DLTOK = { t: 0 };
+function dlWatching() { return ACTIVE.size > 0 || Object.values(SES).some(x => Date.now() - x.last < 30000); }
+function dlThrottle(len) { if (!(+cfg.dlWatchMB > 0) || !dlWatching()) { DLTOK.t = 0; return 0; } const now = Date.now(), rate = Math.max(0.5, +cfg.dlWatchMB) * 1e6; DLTOK.t = Math.max(DLTOK.t, now) + len / rate * 1000; return DLTOK.t - now; }
 function httpGet(url, headers, hops) {
   hops = hops || 0;
   return new Promise((resolve, reject) => {
@@ -590,8 +594,10 @@ async function dlHttp(j, url) {
           if (!(r.statusCode === 206 || (r.statusCode === 200 && g.pos === 0))) { r.resume(); rq.destroy(); throw new Error('Réponse ' + r.statusCode); }
           reqs.add(rq); const before = g.pos;
           await new Promise((res, rej) => {
-            r.on('data', c => { if (!live()) return; let len = c.length; if (isFinite(g.end) && g.pos + len > g.end + 1) len = g.end + 1 - g.pos; fs.writeSync(fd, c, 0, len, g.pos); g.pos += len; j.got += len; });
-            r.on('end', res); r.on('error', rej); r.on('aborted', () => rej(new Error('Connexion interrompue'))); r.on('close', () => { if (!r.complete) rej(new Error('Connexion interrompue')); });
+            let buf = [], bl = 0;   // écritures groupées par blocs de 4 Mo : beaucoup moins de déplacements de la tête du disque dur
+            const flush = () => { if (!bl) return; const b = buf.length === 1 ? buf[0] : Buffer.concat(buf, bl); fs.writeSync(fd, b, 0, bl, g.pos); g.pos += bl; j.got += bl; buf = []; bl = 0; };
+            r.on('data', c => { if (!live()) return; let len = c.length; if (isFinite(g.end) && g.pos + bl + len > g.end + 1) len = g.end + 1 - g.pos - bl; if (len <= 0) return; buf.push(len === c.length ? c : c.subarray(0, len)); bl += len; if (bl >= 4194304) flush(); const w = dlThrottle(len); if (w > 40) { r.pause(); setTimeout(() => { try { r.resume(); } catch {} }, w); } });
+            r.on('end', () => { try { if (live()) flush(); } catch (e) { return rej(e); } res(); }); r.on('error', rej); r.on('aborted', () => rej(new Error('Connexion interrompue'))); r.on('close', () => { if (!r.complete) rej(new Error('Connexion interrompue')); });
           });
           reqs.delete(rq); if (g.pos > before) bad = 0;
           if (!isFinite(g.end)) { g.end = g.pos - 1; break; }
@@ -641,7 +647,7 @@ async function dlYt(j) {
   });
 }
 setTimeout(dlRestore, 4000);
-const RPOLL = new Map();
+const RPOLL = new Map(); let SCREEN = null;
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -789,6 +795,15 @@ SRV = http.createServer(async (req, res) => {
     if (p === '/api/me') return J(req, res, { user: me ? pubUser(me) : null });
     if (!me) { if (p.startsWith('/api/')) return J(req, res, { error: 'auth' }, 401); res.writeHead(401); return res.end(); }
     const S = stOf(me), admin = !!me.admin, iptvOK = me.iptv !== false;
+    if (p === '/api/screen' && !POST) {          // écran du PC en direct (lecture seule, administrateur uniquement)
+      if (!admin) { res.writeHead(403); return res.end(); } if (!FFMPEG) { res.writeHead(503); return res.end('ffmpeg manquant'); }
+      const w = Math.max(320, Math.min(2560, +q.get('w') || 1280)), fps = Math.max(2, Math.min(30, +q.get('fps') || 12)), ql = Math.max(2, Math.min(20, +q.get('q') || 6));
+      if (SCREEN) { try { SCREEN.kill('SIGKILL'); } catch {} SCREEN = null; }
+      const src = process.platform === 'win32' ? ['-f', 'gdigrab', '-framerate', String(fps), '-draw_mouse', '1', '-i', 'desktop'] : ['-re', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=' + fps];
+      const f = spawn(FFMPEG, ['-v', 'error', ...src, '-vf', 'scale=' + w + ':-2', '-q:v', String(ql), '-f', 'mpjpeg', '-boundary_tag', 'frame', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] }); SCREEN = f;
+      res.writeHead(200, { 'Content-Type': 'multipart/x-mixed-replace;boundary=frame', 'Cache-Control': 'no-store', 'Connection': 'close' });
+      f.stdout.pipe(res); f.stderr.on('data', () => {}); const end = () => { try { f.kill('SIGKILL'); } catch {} if (SCREEN === f) SCREEN = null; }; res.on('close', end); f.on('close', () => { try { res.end(); } catch {} }); return;
+    }
     if (p === '/api/remote/poll') {          // la télé (mode TV) interroge ici, très léger (pas de connexion maintenue)
       const r = RPOLL.get(me.id) || { seen: 0, q: [] }; RPOLL.set(me.id, r); r.seen = Date.now(); const q = r.q; r.q = []; return J(req, res, { q });
     }
