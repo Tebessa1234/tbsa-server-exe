@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.18.9', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.18.11', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -777,7 +777,6 @@ SRV = http.createServer(async (req, res) => {
       const st = fs.statSync(f); res.writeHead(200, { 'Content-Type': 'application/vnd.android.package-archive', 'Content-Length': st.size, 'Content-Disposition': 'attachment; filename="TBSA-Serveur.apk"' }); return fs.createReadStream(f).pipe(res);
     }
     if (p === '/assets/intro.mp4') { const f = asset('assets/intro.mp4'); if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); } return serveFile(req, res, f, false); }
-    if (p === '/assets/smoke.jpg') return fs.readFile(asset('assets/smoke.jpg'), (e, b) => e ? (res.writeHead(404), res.end()) : send(res, 200, 'image/jpeg', b, { 'Cache-Control': 'public, max-age=86400' }));
     if (p === '/api/ping') return J(req, res, { name: 'TBSA-Serveur', version: VERSION, server: cfg.serverName, port: PORT });
     if (p === '/api/users' && !POST) return J(req, res, { users: U.users.map(pubUser), auto: U.users.length === 1 && !U.users[0].pin ? U.users[0].id : null, server: cfg.serverName });
     if (p === '/api/login' && POST) {
