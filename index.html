@@ -22,8 +22,8 @@ h1,h2,h3{margin:0}
 /* En-tête */
 #top{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:calc(22 * var(--u));padding:calc(14 * var(--u)) 4vw;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:background .25s}
 #top.solid{background:rgba(11,11,12,.96);box-shadow:0 calc(2 * var(--u)) calc(18 * var(--u)) rgba(0,0,0,.6)}
-.logo{display:inline-flex;flex-direction:column;align-items:flex-start;line-height:1;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-weight:900;font-size:calc(26 * var(--u));letter-spacing:calc(4 * var(--u));color:var(--red);text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.45);white-space:nowrap}
-.logo .sub{color:#fff;font-weight:600;font-size:.36em;letter-spacing:.3em;margin-top:.25em;text-shadow:none;opacity:.92}
+.logo{display:inline-flex;flex-direction:column;align-items:center;line-height:1;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-weight:900;font-size:calc(26 * var(--u));letter-spacing:calc(4 * var(--u));color:var(--red);text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.45);white-space:nowrap}
+.logo .sub{color:#fff;font-weight:600;font-size:.27em;letter-spacing:.2em;margin-top:.3em;margin-right:-.2em;text-shadow:none;opacity:.92}
 .sechead{font-size:calc(26 * var(--u));font-weight:900;padding:calc(4 * var(--u)) calc(14 * var(--u));margin:calc(38 * var(--u)) 4vw 0;border-left:calc(5 * var(--u)) solid var(--red)}
 .scanning #bscan svg,.scanning .scanbtn svg{animation:sp .9s linear infinite}
 .logo small{color:var(--tx);font-weight:600;font-size:calc(13 * var(--u));letter-spacing:calc(2 * var(--u));margin-left:calc(6 * var(--u));opacity:.8}
@@ -236,7 +236,7 @@ body.tv .rowx .arr{display:none}
 html{scroll-padding-top:calc(120 * var(--u));scroll-padding-bottom:calc(60 * var(--u))}
 body.tv .pl .cb{font-size:calc(21 * var(--u));min-width:calc(60 * var(--u));height:calc(60 * var(--u))}body.tv .pl .cb svg{width:calc(36 * var(--u));height:calc(36 * var(--u))}body.tv .pl .seek{font-size:calc(20 * var(--u))}body.tv .pl .top h3{font-size:calc(28 * var(--u))}body.tv .pmenu a{font-size:calc(22 * var(--u))}
 .card.saga .pc{box-shadow:calc(5 * var(--u)) calc(-5 * var(--u)) 0 0 rgba(255,255,255,.24),calc(10 * var(--u)) calc(-10 * var(--u)) 0 0 rgba(255,255,255,.12),0 calc(4 * var(--u)) calc(14 * var(--u)) rgba(0,0,0,.5)}
-.nw{position:absolute;z-index:4;overflow:hidden;border-radius:calc(10 * var(--u));background:#000;border:calc(2 * var(--u)) solid rgba(255,255,255,.3);box-shadow:0 calc(10 * var(--u)) calc(40 * var(--u)) rgba(0,0,0,.85);transition:left .6s ease,top .6s ease,width .6s ease,height .6s ease,border-radius .6s ease,border-color .6s ease}
+.nw{position:absolute;z-index:4;overflow:hidden;border-radius:calc(10 * var(--u));background:#000;border:calc(2 * var(--u)) solid rgba(255,255,255,.3);box-shadow:0 calc(10 * var(--u)) calc(40 * var(--u)) rgba(0,0,0,.85);transition:left .45s ease-out,top .45s ease-out,width .45s ease-out,height .45s ease-out,border-radius .45s ease-out,border-color .45s ease-out}
 .nw.full{border-radius:0;border-color:transparent;box-shadow:none}
 .nw .nwv{position:absolute;top:0;right:0;bottom:0;left:0;background:#000 center/cover no-repeat}
 .nw .nwi{position:absolute;left:0;right:0;bottom:0;padding:calc(10 * var(--u)) calc(14 * var(--u));background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);color:#fff;font-size:calc(14 * var(--u));transition:opacity .35s}
@@ -338,7 +338,9 @@ function playIntro() {
     var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; var q = v.play(); if (q && q.catch) q.catch(end); });
     t1 = setTimeout(function () { if (!v.currentTime) end(); }, 6000);      /* la vidéo ne démarre pas : on n'attend pas */
     t2 = setTimeout(end, 40000);
-    v.onloadedmetadata = function () { clearTimeout(t2); t2 = setTimeout(end, ((v.duration || 20) + 6) * 1000); };
+    var want = 0; try { want = +localStorage.getItem('tbsa.introSec') || 0; } catch (e) {}   /* durée voulue (0 = la vidéo une seule fois) ; la vidéo tourne en boucle pour remplir */
+    if (want > 0) v.loop = true;
+    v.onloadedmetadata = function () { clearTimeout(t2); t2 = setTimeout(end, want > 0 ? want * 1000 : ((v.duration || 20) + 6) * 1000); };
   });
 }
 async function boot() {
@@ -538,9 +540,9 @@ function prefsDlg() {
     '<label class="fld">Volume de la musique</label><input type="range" id="pv" min="0" max="100" value="' + Math.round(p.vol * 100) + '" style="width:100%;accent-color:#e50914">' +
     '<label class="fld"><input type="checkbox" id="pa" ' + (p.autonext ? 'checked' : '') + '> Lire automatiquement l’épisode suivant</label>' +
     '<label class="fld"><input type="checkbox" id="pf" ' + (p.forceAudio ? 'checked' : '') + '> Toujours convertir le son en stéréo (à activer si vous n’entendez rien sur la télé)</label><label class="fld">Sous-titres préférés</label><select id="ps"><option value="off">Aucun</option><option value="fr">Français</option><option value="en">Anglais</option></select>' +
-    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select><label class="fld">Cet appareil lit la 4K</label><select id="p4"><option value="auto">Automatique</option><option value="yes">Oui (télé 4K)</option><option value="no">Non (stick 1080p : conversion en 1080p)</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
-  $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality; $('#p4', o.dlg).value = p.res4k || 'auto';
-  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); setPref('res4k', $('#p4').value); o.close(); toast('Préférences enregistrées'); };
+    '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select><label class="fld">Durée de l’intro (cet appareil)</label><select id="pi"><option value="0">Vidéo seule</option><option value="20">20 secondes (boucle)</option><option value="30">30 secondes (boucle)</option><option value="45">45 secondes (boucle)</option><option value="60">60 secondes (boucle)</option></select><label class="fld">Cet appareil lit la 4K</label><select id="p4"><option value="auto">Automatique</option><option value="yes">Oui (télé 4K)</option><option value="no">Non (stick 1080p : conversion en 1080p)</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
+  $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality; $('#p4', o.dlg).value = p.res4k || 'auto'; try { $('#pi', o.dlg).value = localStorage.getItem('tbsa.introSec') || '0'; } catch (e) {}
+  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); setPref('res4k', $('#p4').value); try { localStorage.setItem('tbsa.introSec', $('#pi').value); } catch (e) {} o.close(); toast('Préférences enregistrées'); };
 }
 async function scanNow() { try { document.body.classList.add('scanning'); await post('/api/scan'); toast('Scan lancé…'); pollScan(); } catch (e) { document.body.classList.remove('scanning'); toast(e.message); } }
 async function pollScan(n) {
@@ -1539,14 +1541,12 @@ async function showNextWindow() {
 function commitNext(fromUser) {
   var nw = PL.nw; if (!nw || nw.committing) return; nw.committing = true; clearInterval(nw.iv); if (fromUser) sendProgress('playing', true);
   var box = nw.el, rw = PL.root.clientWidth, rh = PL.root.clientHeight;
-  /* agrandissement fluide : on passe par transform (accéléré par la carte graphique) au lieu d'animer largeur/hauteur à chaque image */
-  var l0 = box.offsetLeft, t0 = box.offsetTop, w0 = box.offsetWidth || 1, h0 = box.offsetHeight || 1;
-  box.style.transition = 'none'; box.style.left = '0px'; box.style.top = '0px'; box.style.width = rw + 'px'; box.style.height = rh + 'px'; box.style.transformOrigin = '0 0'; box.style.transform = 'translate(' + l0 + 'px,' + t0 + 'px) scale(' + (w0 / rw) + ',' + (h0 / rh) + ')'; box.style.willChange = 'transform';
-  void box.offsetWidth;
-  box.style.transition = 'transform .6s cubic-bezier(.4,0,.2,1)'; box.classList.add('full'); box.style.transform = 'translate(0px,0px) scale(1,1)';
+  /* NB : un transform/will-change sur la fenêtre rend la vidéo toute noire sur le stick -> on anime la taille, en plus court et sans ombre */
+  box.classList.add('full'); box.style.left = '0px'; box.style.top = '0px'; box.style.width = rw + 'px'; box.style.height = rh + 'px';
+  setTimeout(function () { try { if (nw.nv && PL.v && PL.v !== nw.nv) PL.v.style.visibility = 'hidden'; } catch (e) {} }, 330);
   if (nw.nv && nw.plan) {
     var nv = nw.nv; nv.muted = !!PL.v.muted; nv.volume = PL.v.volume; if (nw.plan.mode === 'direct') { try { nv.currentTime = nw.t0 || 0; } catch (e) {} } nv.play().catch(function () {});
-    setTimeout(function () { swapTo(nw); }, 650);
+    setTimeout(function () { swapTo(nw); }, 520);
   } else {
     setTimeout(function () { if (PL.nw !== nw) return; PL.nwCover = box; PL.nw = null; stepQ(1); var rm = function () { box.remove(); if (PL.nwCover === box) PL.nwCover = null; }; if (PL.v) PL.v.addEventListener('playing', function f() { PL.v.removeEventListener('playing', f); rm(); }); setTimeout(rm, 8000); }, 650);
   }
