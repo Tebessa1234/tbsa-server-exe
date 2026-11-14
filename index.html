@@ -1554,7 +1554,10 @@ function commitNext(fromUser) {
 function swapTo(nw) {
   if (!PL.open || PL.nw !== nw) return; var old = PL.v, nv = nw.nv, nxt = PL.q[nw.idx], plan = nw.plan;
   try { old.pause(); old.removeAttribute('src'); old.load(); } catch (e) {}
-  nv.className = ''; nv.style.cssText = ''; PL.root.insertBefore(nv, PL.root.firstChild); old.remove(); nw.el.remove();
+  /* on NE déplace PAS la vidéo dans la page (sur Android ça coupe l'image : écran noir avec le son) : sa boîte devient le lecteur principal */
+  nv.className = ''; var host = nw.el; host.className = 'nwhost'; host.style.cssText = 'position:absolute;top:0;right:0;bottom:0;left:0;z-index:0;background:#000;overflow:hidden';
+  [].forEach.call(host.querySelectorAll('.nwi,.nwb'), function (x) { x.remove(); }); var nvw = $('.nwv', host); if (nvw) nvw.style.cssText = 'position:absolute;top:0;right:0;bottom:0;left:0';
+  old.remove(); if (PL.host && PL.host !== host) PL.host.remove(); PL.host = host;
   PL.v = nv; bindVideo(nv); PL.nw = null; PL.nwOff = false; PL.i = nw.idx; PL.d = nxt; PL.dur = plan.dur || nxt.dur || 0; PL.info = plan.info; PL.mode = plan.mode; PL.qsel = plan.qsel; PL.audio = plan.audio; PL.sub = plan.sub; PL.off = plan.mode === 'transcode' ? nw.t0 : 0; PL.err = false; nv.playbackRate = PL.rate || 1;
   PL.R('t').textContent = nxt.title || ''; PL.R('s').textContent = nxt.sub || ''; $('.mid', PL.root).innerHTML = ''; PL.A('pp').innerHTML = ic('pause');
   applySub(); heartbeat('playing'); showCtl();
