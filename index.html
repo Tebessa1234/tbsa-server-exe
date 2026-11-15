@@ -254,6 +254,16 @@ html:not(.tv) .nw .nwi em{display:none}
 @keyframes introLt{0%{clip-path:inset(0 0 100% 0);-webkit-clip-path:inset(0 0 100% 0);filter:brightness(2.2)}100%{clip-path:inset(0 0 0 0);-webkit-clip-path:inset(0 0 0 0);filter:brightness(1)}}
 #intro canvas{position:absolute;inset:0;width:100%;height:100%}
 #intro .wd{z-index:2}#intro .c2{z-index:3}
+.gd{padding:0 calc(24 * var(--u)) calc(30 * var(--u))}.gdk{display:flex;flex-wrap:wrap;gap:calc(8 * var(--u));margin:0 0 calc(10 * var(--u))}
+.gdp{border:0;background:#1c1c20;color:#bbb;border-radius:999px;padding:calc(7 * var(--u)) calc(16 * var(--u));font-size:calc(16 * var(--u));cursor:pointer}.gdp.on{background:#e50914;color:#fff}
+.gdr{display:flex;gap:calc(8 * var(--u));margin-top:calc(6 * var(--u))}.gdl{width:calc(170 * var(--u));flex:none;height:calc(56 * var(--u));display:flex;align-items:center;gap:calc(8 * var(--u));background:#1c1c20;border:0;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(8 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden}
+.gdl img{height:70%;max-width:calc(44 * var(--u));object-fit:contain}.gdl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gdx{background:none}
+.gdt{position:relative;flex:1;height:calc(56 * var(--u))}.gdh .gdt{height:calc(26 * var(--u));color:#999;font-size:calc(14 * var(--u))}.gdh .gdt span{position:absolute;top:0}.gdh .gdl{height:calc(26 * var(--u))}
+.gdc{position:absolute;top:0;height:100%;box-sizing:border-box;background:#1c1c20;border:1px solid #2b2b31;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(10 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden;display:flex;align-items:center}.gdc.now{background:#2a2a31}
+.gdc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gdc:focus-visible,.gdl:focus-visible,.gdp:focus-visible{z-index:5}
+.gdn{position:absolute;top:0;bottom:0;width:2px;background:#e50914;z-index:3;pointer-events:none}
+.gdi{margin-top:calc(14 * var(--u));background:#1c1c20;border-radius:calc(8 * var(--u));padding:calc(10 * var(--u)) calc(14 * var(--u));min-height:calc(52 * var(--u));font-size:calc(16 * var(--u))}
+.gdc img{height:100%;aspect-ratio:16/9;object-fit:cover;margin-left:calc(-10 * var(--u));margin-right:calc(8 * var(--u));border-radius:calc(5 * var(--u)) 0 0 calc(5 * var(--u));flex:none}.gdi{display:flex;gap:calc(14 * var(--u));align-items:center}.gdm{height:calc(84 * var(--u));aspect-ratio:16/9;object-fit:cover;border-radius:calc(6 * var(--u));flex:none}
 </style>
 </head>
 <body>
@@ -518,14 +528,14 @@ function buildHeader() {
   if (has('movies')) tabs.push(['movies', 'Films']); if (has('shows')) tabs.push(['shows', 'Séries']); if (has('other')) tabs.push(['other', 'Vidéos']);
   if (c.iptv.xtream) tabs.push(['live', 'TV en direct'], ['vod', 'Films IPTV'], ['series', 'Séries IPTV']);
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
-  tabs.push(['list', 'Ma liste']); if (S.me.admin) tabs.push(['screen', '🖥 Écran du PC']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
+  tabs.push(['list', 'Ma liste'], ['youtube', 'YouTube']); if (S.me.admin) tabs.push(['screen', '🖥 Écran du PC']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
   $('#top').innerHTML = '<a class="logo" href="#/home">' + LOGO + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
     (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#e50914;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
   $('#bs').onclick = function () { go('#/search'); };
   if ($('#bdl')) { $('#bdl').onclick = function () { dlDlg(); };
     if (!S.dlT) S.dlT = setInterval(async function () { var b = $('#bdn'); if (!b || document.hidden || !S.me) return; try { var r = await api('/api/dl-list'), n = (r.jobs || []).filter(function (j) { return j.state === 'run' || j.state === 'queue'; }).length; b.textContent = n; b.style.display = n ? 'block' : 'none'; } catch (e) {} }, 8000); } if ($('#bscan')) $('#bscan').onclick = scanNow; $('#bu').onclick = userMenu;
 }
-function activeTab(n) { return { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', person: 'home', search: '', settings: '', activity: '' }[n] !== undefined ? { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', person: 'home', search: '', settings: '', activity: '' }[n] : n; }
+function activeTab(n) { return { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', chans: 'live', guide: 'live', person: 'home', search: '', settings: '', activity: '' }[n] !== undefined ? { movie: 'movies', show: 'shows', xvod: 'vod', xser: 'series', chans: 'live', guide: 'live', person: 'home', search: '', settings: '', activity: '' }[n] : n; }
 function userMenu() {
   if (PL && PL.open) { openMenu('all'); return; }   // touche Menu de la télécommande pendant la lecture : réglages du lecteur
   var a = S.me.admin, o = openOv('<div class="dh2">' + esc(S.me.name) + (S.me.kid ? ' · profil enfant' : '') + '</div><div style="padding:16px;display:grid;gap:10px">' +
@@ -1775,7 +1785,7 @@ async function channelsPage(v, o) {
   var F = S.f[o.key] || (S.f[o.key] = { cat: '', q: '', max: 300 }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + o.title + '</h2></div>';
   var data; try { data = await o.load(F); } catch (e) { v.append(el('div', 'emp', esc(e.message || 'Impossible de charger les chaînes. Vérifiez les Réglages IPTV.'))); return; }
   v.append(catPills(o.key, data.cats, F, 300, function () { channelsPage(v, o); }, true));
-  var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer les chaînes…'; qi.value = F.q; qi.style.width = '260px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
+  var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer les chaînes…'; qi.value = F.q; qi.style.width = '260px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); if (o.key === 'live') { var gb = el('button', 'btn', '◀ Guide TV'); gb.onclick = function () { go('#/live'); }; bar.prepend(gb); } v.append(bar); var box = el('div'); v.append(box);
   var draw = function () {
     var list = data.all.filter(function (c) { return (F.cat === '__fav' ? S.st.favCh.indexOf(c.id) >= 0 : (!F.cat || c.cat === F.cat)) && (!F.q || c.name.toLowerCase().indexOf(F.q.toLowerCase()) >= 0); });
     if (F.cat === '__fav') list.sort(function (a, b) { return S.st.favCh.indexOf(a.id) - S.st.favCh.indexOf(b.id); });
@@ -1785,12 +1795,75 @@ async function channelsPage(v, o) {
   };
   var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = 300; draw(); }, 200); }; draw();
 }
-ROUTES.live = function (v) {
+ROUTES.chans = function (v) {
   return channelsPage(v, { key: 'live', title: 'TV en direct', load: async function (F) {
     var r = await Promise.all([xt('get_live_categories'), xt('get_live_streams')]); if (!Array.isArray(r[0]) || !Array.isArray(r[1])) throw new Error('Réponse IPTV invalide. Vérifiez vos identifiants.');
     var cn = {}; r[0].forEach(function (c) { cn[c.category_id] = c.category_name; });
     return { cats: r[0].map(function (c) { return [c.category_id, c.category_name]; }), all: r[1].map(function (s) { return { id: 'x' + s.stream_id, sid: s.stream_id, name: s.name, logo: s.stream_icon, num: s.num, cat: s.category_id, group: cn[s.category_id], src: '/xt/live/' + s.stream_id, x: true }; }) };
   } });
+};
+/* ===== Guide TV : grille des chaînes françaises (programmes sur 3 h) ===== */
+ROUTES.live = ROUTES.guide = async function (v) {
+  var F = S.f.guide || (S.f.guide = { cat: '', w: 0, max: 24 }), SPAN = 10800;
+  v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 10px">Guide TV · chaînes françaises</h2></div>';
+  var wrap = el('div', 'gd'); v.append(wrap);
+  var hm = function (t) { return new Date(t * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
+  var info; try { info = await api('/api/guide'); } catch (e) { wrap.innerHTML = '<div class="emp">' + esc(e.message || 'Guide indisponible. Vérifiez les Réglages IPTV.') + '</div>'; return; }
+  if (!info.cats || !info.cats.length) { wrap.innerHTML = '<div class="emp">Aucune chaîne trouvée chez votre fournisseur.</div>'; return; }
+  if (info.state !== 'ready') {
+    wrap.innerHTML = '<div class="emp">' + (info.state === 'error' ? 'Guide indisponible : ' + esc(info.err || 'erreur') + '.<br>Votre fournisseur ne le propose peut-être pas.' : 'Chargement du guide… la première fois, cela peut prendre une à deux minutes.') + '</div>';
+    if (info.state !== 'error') setTimeout(function () { if (document.body.contains(v) && /^#\/(live|guide)/.test(location.hash)) ROUTES.guide(v); }, 4000);
+    return;
+  }
+  var ids = info.cats.map(function (c) { return c[0]; });
+  if (ids.indexOf(F.cat) < 0) { var pf = info.cats.filter(function (c) { return /tnt|g[ée]n[ée]ral|national|france/i.test(c[1]); })[0]; F.cat = (pf || info.cats[0])[0]; }
+  var now = Date.now() / 1000;
+  if (!F.w) F.w = Math.floor((now - 1800) / 1800) * 1800;
+  var data; try { data = await api('/api/guide?cat=' + encodeURIComponent(F.cat)); } catch (e) { wrap.innerHTML = '<div class="emp">' + esc(e.message) + '</div>'; return; }
+  var chans = (data.ch || []).map(function (c) { return { id: 'x' + c.sid, sid: c.sid, name: c.name, logo: c.logo, num: c.num, cat: c.cat, group: '', src: '/xt/live/' + c.sid, x: true, p: c.p }; });
+  var pills = el('div', 'gdk'); info.cats.forEach(function (c) { var b = el('button', 'gdp' + (c[0] === F.cat ? ' on' : ''), esc(c[1])); b.dataset.fk = 'gp|' + c[0]; b.onclick = function () { F.cat = c[0]; F.max = 24; ROUTES.guide(v); }; pills.append(b); });
+  if (info.all) pills.append(el('div', 'msg', 'Aucune catégorie « FR » détectée : toutes les chaînes sont affichées.'));
+  var nav = el('div', 'bar'), ba = el('button', 'btn', 'Toutes les chaînes'), bm = el('button', 'btn', '◀ Plus tôt'), bn = el('button', 'btn', 'Maintenant'), bp = el('button', 'btn', 'Plus tard ▶'), tl = el('span', 'msg');
+  ba.onclick = function () { go('#/chans'); }; nav.append(bm, bn, bp, ba, tl); var body = el('div'), inf = el('div', 'gdi'); wrap.append(pills, nav, body, inf);
+  var showInfo = function (h) { inf.innerHTML = h; };
+  var draw = function () {
+    var W = F.w, now2 = Date.now() / 1000; body.innerHTML = '';
+    var d0 = new Date(W * 1000); tl.textContent = d0.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + hm(W) + ' – ' + hm(W + SPAN);
+    var hd = el('div', 'gdr gdh'); hd.append(el('div', 'gdl gdx')); var ht = el('div', 'gdt');
+    for (var h = Math.ceil(W / 3600) * 3600; h < W + SPAN; h += 3600) { var s = el('span', '', hm(h)); s.style.left = (100 * (h - W) / SPAN) + '%'; ht.append(s); }
+    hd.append(ht); body.append(hd);
+    var list = chans.slice(0, F.max);
+    list.forEach(function (c, i) {
+      var r = el('div', 'gdr'), lb = el('button', 'gdl'); lb.dataset.fk = 'gl|' + c.sid;
+      lb.innerHTML = (c.logo ? '<img loading="lazy" src="' + esc(c.logo) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(c.name.replace(/^\s*(FR|FRA)\s*[|:\-]\s*/i, '')) + '</span>';
+      lb.onclick = function () { play(list.map(descLive), i, { live: true }); }; lb.onfocus = function () { showInfo((c.logo ? '<img class="gdm" src="' + esc(c.logo) + '" alt="" onerror="this.remove()" style="object-fit:contain">' : '') + '<div><b>' + esc(c.name) + '</b> · OK pour regarder la chaîne</div>'); };
+      var t = el('div', 'gdt'), any = false;
+      (c.p || []).forEach(function (p) {
+        if (p[1] <= W || p[0] >= W + SPAN) return; any = true;
+        var a = Math.max(p[0], W), b = Math.min(p[1], W + SPAN), cell = el('button', 'gdc' + (p[0] <= now2 && p[1] > now2 ? ' now' : ''), (p[4] && (b - a) / SPAN > 0.2 ? '<img loading="lazy" src="' + esc(p[4]) + '" alt="" onerror="this.remove()">' : '') + '<span>' + esc(p[2] || 'Programme') + '</span>');
+        cell.style.left = (100 * (a - W) / SPAN) + '%'; cell.style.width = 'calc(' + (100 * (b - a) / SPAN) + '% - 3px)'; cell.dataset.fk = 'gc|' + c.sid + '|' + p[0];
+        cell.onfocus = function () { showInfo((p[4] ? '<img class="gdm" src="' + esc(p[4]) + '" alt="" onerror="this.remove()">' : '') + '<div><b>' + esc(p[2] || 'Programme') + '</b> · ' + hm(p[0]) + ' – ' + hm(p[1]) + ' · ' + esc(c.name.replace(/^\s*(FR|FRA)\s*[|:\-]\s*/i, '')) + (p[3] ? '<br><span class="msg">' + esc(p[3]) + '</span>' : '') + '</div>'); };
+        cell.onclick = function () { if (p[0] <= Date.now() / 1000 && p[1] > Date.now() / 1000) play(list.map(descLive), i, { live: true }); else toast((p[2] || 'Programme') + ' · ' + hm(p[0]) + ' – ' + hm(p[1])); };
+        t.append(cell);
+      });
+      if (!any) { var e0 = el('button', 'gdc', '<span>Pas de programme</span>'); e0.style.left = '0'; e0.style.width = 'calc(100% - 3px)'; e0.dataset.fk = 'gc|' + c.sid + '|0'; e0.onclick = lb.onclick; t.append(e0); }
+      if (now2 >= W && now2 < W + SPAN) { var nl = el('i', 'gdn'); nl.style.left = (100 * (now2 - W) / SPAN) + '%'; t.append(nl); }
+      r.append(lb, t); body.append(r);
+    });
+    if (chans.length > F.max) { var m = el('div', 'bar'), mb = el('button', 'btn', 'Afficher plus (' + (chans.length - F.max) + ')'); mb.onclick = function () { F.max += 24; draw(); }; m.append(mb); body.append(m); }
+    if (!chans.length) body.innerHTML = '<div class="emp">Aucune chaîne dans cette catégorie.</div>';
+  };
+  bm.onclick = function () { F.w -= 7200; draw(); }; bp.onclick = function () { F.w += 7200; draw(); };
+  bn.onclick = function () { F.w = Math.floor((Date.now() / 1000 - 1800) / 1800) * 1800; draw(); };
+  draw();
+};
+/* ===== Coin YouTube : ouvre YouTube dans l'application (TV/Android) ou un onglet (PC) ===== */
+ROUTES.youtube = function (v) {
+  var br = window.TBSA, can = br && typeof br.openYoutube === 'function', canApp = br && typeof br.openYoutubeApp === 'function';
+  v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 10px">YouTube</h2><div class="bar"><button class="btn" id="yta">Ouvrir YouTube</button>' + (canApp ? '<button class="btn ghost" id="ytb">Ouvrir l\'application YouTube du stick</button>' : '') + '</div>'
+    + '<div class="msg" style="margin-top:14px;max-width:760px">' + (can ? 'YouTube s\'ouvre dans TBSA. Retour : revient dans YouTube ; appuyez deux fois sur Retour pour revenir à TBSA.' : (br ? 'Mettez à jour l\'application Android TBSA pour ouvrir YouTube ici.' : 'YouTube s\'ouvre dans un nouvel onglet du navigateur.')) + '</div></div>';
+  v.querySelector('#yta').onclick = function () { if (can) br.openYoutube(); else window.open('https://www.youtube.com/', '_blank'); };
+  var b2 = v.querySelector('#ytb'); if (b2) b2.onclick = function () { br.openYoutubeApp(); };
 };
 ROUTES.m3u = function (v) {
   return channelsPage(v, { key: 'm3u', title: 'Playlist M3U', load: async function () {

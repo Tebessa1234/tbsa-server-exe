@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.19.1', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.20.0', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -523,6 +523,59 @@ function compatTrailer(src) {
   COMPAT.set(out, p); return p;
 }
 
+/* ---------- Guide TV (XMLTV du fournisseur Xtream) : chaînes françaises uniquement ---------- */
+const FRRE = /(^|[^a-z0-9])(fr|fra|france|fran[cç]ais|french)([^a-z0-9]|$)/i;
+let GD = load('guide.json', null) || { t: 0, p: {} }, GP = null, GFAIL = 0, GERR = '', GCH = { t: 0, v: null };
+const gnorm = s => String(s || '').toLowerCase().replace(/^\s*(fr|fra|france)\s*[|:\-]\s*/, '').replace(/\b(hd|fhd|uhd|4k|sd|hevc|raw)\b/g, '').replace(/[^a-z0-9]/g, '');
+const gkey = c => (c.cid ? String(c.cid).toLowerCase() : 'n:' + gnorm(c.name));
+async function guideChans() {
+  if (GCH.v && Date.now() - GCH.t < 300000) return GCH.v;
+  const [cats, streams] = (await Promise.all([xtGet({ action: 'get_live_categories' }), xtGet({ action: 'get_live_streams' })])).map(JSON.parse);
+  if (!Array.isArray(cats) || !Array.isArray(streams)) throw new Error('Réponse IPTV invalide');
+  let fr = cats.filter(c => FRRE.test(c.category_name || '') && !/radio/i.test(c.category_name || '')); const all = !fr.length; if (all) fr = cats;
+  const ids = new Set(fr.map(c => String(c.category_id)));
+  const ch = streams.filter(s => ids.has(String(s.category_id))).map(s => ({ sid: s.stream_id, name: s.name, logo: s.stream_icon, num: s.num, cat: String(s.category_id), cid: s.epg_channel_id || '' }));
+  return (GCH = { t: Date.now(), v: { cats: fr.map(c => [String(c.category_id), c.category_name]), ch, all } }).v;
+}
+const xent = s => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&(amp|lt|gt|quot|apos|#39|#x27);/g, (m, k) => ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'", '#x27': "'" }[k])).replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/\s+/g, ' ').trim();
+function xtime(s) {
+  const m = /^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)?\s*([+-]\d{4})?/.exec(String(s || '')); if (!m) return 0;
+  let t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) / 1000;
+  if (m[7]) t -= (m[7][0] === '-' ? -1 : 1) * (+m[7].slice(1, 3) * 3600 + +m[7].slice(3, 5) * 60); return t;
+}
+function guideLoad() {
+  if (GP) return GP;
+  GP = (async () => {
+    GERR = '';
+    try {
+      const { ch } = await guideChans(), want = new Set(), byName = new Map();
+      ch.forEach(c => { if (c.cid) want.add(String(c.cid).toLowerCase()); else byName.set(gnorm(c.name), 1); });
+      const r = await fetch(`${xBase()}/xmltv.php?username=${encodeURIComponent(cfg.xtream.user)}&password=${encodeURIComponent(cfg.xtream.pass)}`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(300000) });
+      if (!r.ok) throw new Error('Le fournisseur ne propose pas de guide (HTTP ' + r.status + ')');
+      const now = Date.now() / 1000, lo = now - 6 * 3600, hi = now + 48 * 3600, P = {}, alias = {}, dec = new TextDecoder('utf-8'), re = /<channel id="([^"]*)"[^>]*>([\s\S]*?)<\/channel>|<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g; let buf = '', n = 0;
+      const eat = () => {
+        re.lastIndex = 0; let m, end = 0;
+        while ((m = re.exec(buf))) {
+          end = re.lastIndex;
+          if (m[1] !== undefined) { const id = xent(m[1]).toLowerCase(); if (!want.has(id)) { const dn = /<display-name[^>]*>([\s\S]*?)<\/display-name>/.exec(m[2]); const k = dn ? gnorm(xent(dn[1])) : ''; if (k && byName.has(k)) alias[id] = 'n:' + k; } continue; }
+          const at = a => { const x = new RegExp(a + '="([^"]*)"').exec(m[3]); return x ? x[1] : ''; };
+          const id = xent(at('channel')).toLowerCase(), key = want.has(id) ? id : alias[id]; if (!key) continue;
+          const s = xtime(at('start')), e = xtime(at('stop')); if (!s || !e || e < lo || s > hi) continue;
+          const t = /<title[^>]*>([\s\S]*?)<\/title>/.exec(m[4]), d = /<desc[^>]*>([\s\S]*?)<\/desc>/.exec(m[4]);
+          const ic = /<icon\s+src="([^"]+)"/.exec(m[4]);
+          (P[key] || (P[key] = [])).push([s, e, xent(t && t[1]).slice(0, 120), xent(d && d[1]).slice(0, 220), ic ? xent(ic[1]) : '']); n++;
+        }
+        buf = buf.slice(end); if (buf.length > 4e6) buf = buf.slice(-2e5);
+      };
+      for await (const chunk of r.body) { buf += dec.decode(chunk, { stream: true }); eat(); }
+      for (const k in P) P[k].sort((a, b) => a[0] - b[0]);
+      if (!n) throw new Error('Guide vide chez le fournisseur');
+      GD = { t: Date.now(), v: 2, p: P }; save('guide.json', GD); console.log('Guide TV chargé : ' + Object.keys(P).length + ' chaînes, ' + n + ' programmes');
+    } catch (e) { GERR = e.message || 'Erreur'; GFAIL = Date.now(); console.log('Guide TV : ' + GERR); }
+  })().finally(() => { GP = null; });
+  return GP;
+}
+
 /* ---------- Téléchargements vers le PC (films/séries IPTV, bandes-annonces) ---------- */
 const DLJ = [];
 let dlSeq = 0;
@@ -1035,6 +1088,14 @@ SRV = http.createServer(async (req, res) => {
       if (!iptvOK || !cfg.xtream) return J(req, res, { error: 'Xtream non configuré (voir Réglages)' }, 400);
       const params = Object.fromEntries(q); delete params.username; delete params.password;
       try { return send(res, 200, 'application/json', await xtGet(params), { 'Cache-Control': 'no-store' }); } catch { return J(req, res, { error: 'Serveur IPTV injoignable' }, 502); }
+    }
+    if (p === '/api/guide') {
+      if (!iptvOK || !cfg.xtream) return J(req, res, { error: 'Xtream non configuré (voir Réglages)' }, 400);
+      if ((!GD.t || GD.v !== 2 || Date.now() - GD.t > 6 * 3600e3) && !GP && Date.now() - GFAIL > 120000) guideLoad();   // chargement en arrière-plan
+      let I; try { I = await guideChans(); } catch { return J(req, res, { error: 'Serveur IPTV injoignable' }, 502); }
+      const o = { state: GD.t ? 'ready' : (GP ? 'loading' : (GERR ? 'error' : 'loading')), err: GD.t ? '' : GERR, t: GD.t, all: I.all, cats: I.cats }, cat = q.get('cat');
+      if (cat && GD.t) { const sh = I.ch.filter(c => c.cat === cat).slice(0, 250); o.ch = sh.map(c => ({ sid: c.sid, name: c.name, logo: c.logo, num: c.num, cat: c.cat, p: GD.p[gkey(c)] || [] })); }
+      return J(req, res, o);
     }
     if (p === '/api/epg') {
       const sid = q.get('stream_id') || ''; if (!iptvOK || !/^\d+$/.test(sid)) return J(req, res, []);
