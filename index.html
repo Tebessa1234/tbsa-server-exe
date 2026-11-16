@@ -3,26 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0b0c">
+<meta name="theme-color" content="#08050d">
 <title>TBSA-Serveur</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <style>
-:root{--u:1px;--red:#e50914;--red2:#b20710;--bg:#0b0b0c;--panel:#161619;--panel2:#202025;--tx:#f5f5f1;--mu:#a3a3ab;--line:#2c2c32;--cw:calc(172 * var(--u));color-scheme:dark;font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif}
+:root{--u:1px;--red:#9333ea;--red2:#6d28d9;--bg:#08050d;--panel:#130d1d;--panel2:#1c1329;--tx:#f5f3fa;--mu:#a9a3b8;--line:#2e2243;--cw:calc(172 * var(--u));color-scheme:dark;font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;min-height:100%}
 body{background:var(--bg);color:var(--tx);overflow-x:hidden;font-size:calc(16 * var(--u))}
-body::before{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-2;background:#0b0b0c}
-body::after{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;background:radial-gradient(calc(1100 * var(--u)) calc(560 * var(--u)) at 85% -8%,rgba(229,9,20,.22),transparent 62%),linear-gradient(180deg,rgba(11,11,12,.5),var(--bg) 80%)}
+body::before{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-2;background:#08050d}
+body::after{content:"";position:fixed;top:0;right:0;bottom:0;left:0;z-index:-1;background:radial-gradient(calc(1100 * var(--u)) calc(560 * var(--u)) at 85% -8%,rgba(147,51,234,.22),transparent 62%),linear-gradient(180deg,rgba(11,11,12,.5),var(--bg) 80%)}
 a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit;color:var(--tx)}
 :focus{outline:none}
-:focus-visible{outline:calc(3 * var(--u)) solid #fff;outline-offset:calc(2 * var(--u));box-shadow:0 0 0 calc(6 * var(--u)) rgba(229,9,20,.55)}
+:focus-visible{outline:calc(3 * var(--u)) solid #fff;outline-offset:calc(2 * var(--u));box-shadow:0 0 0 calc(6 * var(--u)) rgba(147,51,234,.55)}
 ::-webkit-scrollbar{width:calc(10 * var(--u));height:calc(10 * var(--u))}::-webkit-scrollbar-thumb{background:#33333a;border-radius:calc(6 * var(--u))}::-webkit-scrollbar-track{background:transparent}
 h1,h2,h3{margin:0}
 /* En-tête */
 #top{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:calc(22 * var(--u));padding:calc(14 * var(--u)) 4vw;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,0));transition:background .25s}
 #top.solid{background:rgba(11,11,12,.96);box-shadow:0 calc(2 * var(--u)) calc(18 * var(--u)) rgba(0,0,0,.6)}
-.logo{display:inline-flex;flex-direction:column;align-items:center;line-height:1;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-weight:900;font-size:calc(26 * var(--u));letter-spacing:calc(4 * var(--u));color:var(--red);text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.45);white-space:nowrap}
+.logo{display:inline-flex;flex-direction:column;align-items:center;line-height:1;font-family:'Segoe UI',Roboto,Arial,sans-serif;font-weight:900;font-size:calc(26 * var(--u));letter-spacing:calc(4 * var(--u));color:#e50914;text-shadow:0 0 calc(18 * var(--u)) rgba(229,9,20,.45);white-space:nowrap}
 .logo .sub{color:#fff;font-weight:600;font-size:.27em;letter-spacing:.2em;margin-top:.3em;margin-right:-.2em;text-shadow:none;opacity:.92}
 .sechead{font-size:calc(26 * var(--u));font-weight:900;padding:calc(4 * var(--u)) calc(14 * var(--u));margin:calc(38 * var(--u)) 4vw 0;border-left:calc(5 * var(--u)) solid var(--red)}
 .scanning #bscan svg,.scanning .scanbtn svg{animation:sp .9s linear infinite}
@@ -30,16 +30,16 @@ h1,h2,h3{margin:0}
 #nav{display:flex;gap:calc(4 * var(--u));flex:1;overflow-x:auto;scrollbar-width:none}
 #nav::-webkit-scrollbar{display:none}
 #nav a{padding:calc(8 * var(--u)) calc(14 * var(--u));border-radius:calc(6 * var(--u));color:#d6d6da;white-space:nowrap;cursor:pointer;font-size:calc(15 * var(--u))}
-#nav a:hover{color:#fff}#nav a.on{color:#fff;font-weight:700;background:rgba(229,9,20,.28)}
+#nav a:hover{color:#fff}#nav a.on{color:#fff;font-weight:700;background:rgba(147,51,234,.28)}
 .ibtn{background:none;border:0;cursor:pointer;width:calc(42 * var(--u));height:calc(42 * var(--u));border-radius:50%;display:grid;place-items:center;color:#fff}
 .ibtn:hover{background:rgba(255,255,255,.12)}
-.avatar{width:calc(38 * var(--u));height:calc(38 * var(--u));border-radius:calc(8 * var(--u));display:grid;place-items:center;font-weight:800;font-size:calc(18 * var(--u));color:#fff;background:linear-gradient(135deg,var(--red),#7a0409)}
+.avatar{width:calc(38 * var(--u));height:calc(38 * var(--u));border-radius:calc(8 * var(--u));display:grid;place-items:center;font-weight:800;font-size:calc(18 * var(--u));color:#fff;background:linear-gradient(135deg,var(--red),#3b0f7a)}
 #view{min-height:100vh;padding-bottom:calc(60 * var(--u))}
 .pad{padding:calc(96 * var(--u)) 4vw 0}
 /* Boutons */
 .btn{display:inline-flex;align-items:center;gap:calc(8 * var(--u));padding:calc(10 * var(--u)) calc(22 * var(--u));border-radius:calc(5 * var(--u));border:0;background:rgba(109,109,114,.55);color:#fff;font-weight:700;cursor:pointer;font-size:calc(16 * var(--u));white-space:nowrap}
 .btn:hover{background:rgba(140,140,146,.7)}
-.btn.red{background:var(--red)}.btn.red:hover{background:#f6121d}
+.btn.red{background:var(--red)}.btn.red:hover{background:#a855f7}
 .btn.light{background:#fff;color:#111}.btn.light:hover{background:#e6e6e6}
 .btn.sm{padding:calc(6 * var(--u)) calc(14 * var(--u));font-size:calc(14 * var(--u))}
 .btn.ghost{background:transparent;border:calc(1 * var(--u)) solid #55555c}.btn.ghost:hover{background:rgba(255,255,255,.08)}
@@ -124,11 +124,11 @@ h2.pt{font-size:calc(30 * var(--u));font-weight:800;padding:0 4vw calc(14 * var(
 .epr .tx{flex:1;min-width:0}.epr h3{font-size:calc(16 * var(--u))}.epr p{margin:calc(6 * var(--u)) 0 0;color:var(--mu);font-size:calc(14 * var(--u));line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .epr .ck{color:#46d369;font-weight:800}
 /* Profils / connexion */
-.login{position:fixed;top:0;right:0;bottom:0;left:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(30 * var(--u));background:radial-gradient(calc(900 * var(--u)) calc(500 * var(--u)) at 50% 110%,rgba(229,9,20,.35),transparent 65%),rgba(8,8,9,.88);text-align:center;padding:calc(20 * var(--u));overflow:auto}
+.login{position:fixed;top:0;right:0;bottom:0;left:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(30 * var(--u));background:radial-gradient(calc(900 * var(--u)) calc(500 * var(--u)) at 50% 110%,rgba(147,51,234,.35),transparent 65%),rgba(8,8,9,.88);text-align:center;padding:calc(20 * var(--u));overflow:auto}
 .login h1{font-size:calc(48 * var(--u));font-size:clamp(calc(30 * var(--u)),4vw,calc(48 * var(--u)));font-weight:300;letter-spacing:.5px}
 .profiles{display:flex;gap:calc(26 * var(--u));flex-wrap:wrap;justify-content:center}
 .prof{width:calc(130 * var(--u));cursor:pointer;color:#bbb}.prof:hover,.prof:focus-visible{color:#fff}
-.prof .av{width:calc(130 * var(--u));height:calc(130 * var(--u));border-radius:calc(12 * var(--u));display:grid;place-items:center;font-size:calc(56 * var(--u));font-weight:800;margin-bottom:calc(10 * var(--u));background:linear-gradient(135deg,var(--red),#6d0309);box-shadow:0 calc(8 * var(--u)) calc(28 * var(--u)) rgba(0,0,0,.6);transition:transform .15s}
+.prof .av{width:calc(130 * var(--u));height:calc(130 * var(--u));border-radius:calc(12 * var(--u));display:grid;place-items:center;font-size:calc(56 * var(--u));font-weight:800;margin-bottom:calc(10 * var(--u));background:linear-gradient(135deg,var(--red),#3b0f7a);box-shadow:0 calc(8 * var(--u)) calc(28 * var(--u)) rgba(0,0,0,.6);transition:transform .15s}
 .prof:hover .av,.prof:focus-visible .av{transform:scale(1.08);box-shadow:0 0 0 calc(4 * var(--u)) #fff}
 .prof .lk{font-size:calc(13 * var(--u));color:var(--mu)}
 .pin{display:grid;grid-template-columns:repeat(3,calc(72 * var(--u)));gap:calc(10 * var(--u));justify-content:center}
@@ -138,12 +138,12 @@ h2.pt{font-size:calc(30 * var(--u));font-weight:800;padding:0 4vw calc(14 * var(
 .ov{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:calc(14 * var(--u))}
 .dlg{background:#1b1b1f;border:calc(1 * var(--u)) solid var(--line);border-radius:calc(10 * var(--u));width:calc(820 * var(--u));max-width:100%;height:calc(600 * var(--u));max-height:96vh;width:min(calc(820 * var(--u)),100%);height:min(calc(600 * var(--u)),96vh);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 calc(20 * var(--u)) calc(70 * var(--u)) rgba(0,0,0,.8)}
 .dlg.sm{height:auto;max-height:92vh;width:calc(520 * var(--u));max-width:100%;width:min(calc(520 * var(--u)),100%)}
-.dh2{display:flex;justify-content:space-between;align-items:center;padding:calc(16 * var(--u)) calc(20 * var(--u));font-size:calc(18 * var(--u));font-weight:700;background:#151518;border-bottom:calc(1 * var(--u)) solid var(--line)}
+.dh2{display:flex;justify-content:space-between;align-items:center;padding:calc(16 * var(--u)) calc(20 * var(--u));font-size:calc(18 * var(--u));font-weight:700;background:#120c1c;border-bottom:calc(1 * var(--u)) solid var(--line)}
 .db{flex:1;display:flex;min-height:0}
 .dside{width:calc(190 * var(--u));background:#141417;padding:calc(12 * var(--u)) calc(8 * var(--u));flex:none;overflow:auto}
-.dside a{display:block;padding:calc(11 * var(--u)) calc(12 * var(--u));color:var(--mu);cursor:pointer;border-radius:calc(6 * var(--u))}.dside a:hover{color:#fff}.dside a.on{color:#fff;background:rgba(229,9,20,.28);font-weight:700}
+.dside a{display:block;padding:calc(11 * var(--u)) calc(12 * var(--u));color:var(--mu);cursor:pointer;border-radius:calc(6 * var(--u))}.dside a:hover{color:#fff}.dside a.on{color:#fff;background:rgba(147,51,234,.28);font-weight:700}
 .dmain{flex:1;padding:calc(18 * var(--u)) calc(22 * var(--u));overflow:auto}
-.df{display:flex;justify-content:space-between;align-items:center;gap:calc(10 * var(--u));padding:calc(14 * var(--u)) calc(20 * var(--u));background:#151518;border-top:calc(1 * var(--u)) solid var(--line)}
+.df{display:flex;justify-content:space-between;align-items:center;gap:calc(10 * var(--u));padding:calc(14 * var(--u)) calc(20 * var(--u));background:#120c1c;border-top:calc(1 * var(--u)) solid var(--line)}
 .tagbox{display:flex;flex-wrap:wrap;gap:calc(6 * var(--u));padding:calc(8 * var(--u));background:var(--panel2);border:calc(1 * var(--u)) solid var(--line);border-radius:calc(6 * var(--u));min-height:calc(46 * var(--u))}
 .tagbox span{background:#34343b;border-radius:calc(4 * var(--u));padding:calc(3 * var(--u)) calc(8 * var(--u));font-size:calc(14 * var(--u));display:inline-flex;gap:calc(6 * var(--u));align-items:center}.tagbox span u{cursor:pointer;color:#aaa;text-decoration:none}
 .tagbox input{flex:1;min-width:calc(120 * var(--u));background:none;border:0;padding:calc(4 * var(--u));width:auto}
@@ -166,7 +166,7 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 @keyframes sp{to{transform:rotate(360deg)}}
 .fade{animation:fd .35s ease}@keyframes fd{from{opacity:0;transform:translateY(calc(8 * var(--u)))}to{opacity:1;transform:none}}
 .pills{display:flex;gap:calc(8 * var(--u));overflow-x:auto;padding:0 4vw calc(12 * var(--u));scrollbar-width:none}.pills::-webkit-scrollbar{display:none}
-.chcard .pc{aspect-ratio:16/10;background:#17171b;padding:calc(10 * var(--u))}.chcard .pc img{object-fit:contain;padding:calc(14 * var(--u))}
+.chcard .pc{aspect-ratio:16/10;background:#140e1f;padding:calc(10 * var(--u))}.chcard .pc img{object-fit:contain;padding:calc(14 * var(--u))}
 .chcard .num{position:absolute;top:calc(6 * var(--u));left:calc(8 * var(--u));font-size:calc(12 * var(--u));color:#bbb;font-weight:800;z-index:2}
 .star{position:absolute;top:calc(4 * var(--u));right:calc(6 * var(--u));z-index:3;background:none;border:0;color:#777;font-size:calc(20 * var(--u));cursor:pointer;padding:calc(2 * var(--u))}.star.on{color:#ffc933}
 /* Lecteur */
@@ -178,7 +178,7 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 .pl .top h3{font-size:calc(20 * var(--u));flex:1}.pl .top small{color:#bbb;display:block;font-weight:400;font-size:calc(14 * var(--u))}
 .pl .bot{bottom:0;background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);padding-top:calc(60 * var(--u))}
 .pl.hide .top,.pl.hide .bot{opacity:0;pointer-events:none}.pl.hide{cursor:none}
-.qi{display:flex;gap:calc(8 * var(--u));flex-wrap:wrap;margin:0 0 calc(8 * var(--u));font-size:calc(13 * var(--u))}.qi span{border:1px solid rgba(255,255,255,.35);border-radius:calc(5 * var(--u));padding:calc(2 * var(--u)) calc(9 * var(--u));background:rgba(0,0,0,.45);color:#eee;white-space:nowrap}.qi span.k{background:#e50914;border-color:#e50914;color:#fff;font-weight:700}.qi:empty{display:none}body.tv .qi{font-size:calc(19 * var(--u))}
+.qi{display:flex;gap:calc(8 * var(--u));flex-wrap:wrap;margin:0 0 calc(8 * var(--u));font-size:calc(13 * var(--u))}.qi span{border:1px solid rgba(255,255,255,.35);border-radius:calc(5 * var(--u));padding:calc(2 * var(--u)) calc(9 * var(--u));background:rgba(0,0,0,.45);color:#eee;white-space:nowrap}.qi span.k{background:#9333ea;border-color:#9333ea;color:#fff;font-weight:700}.qi:empty{display:none}body.tv .qi{font-size:calc(19 * var(--u))}
 .seek{display:flex;align-items:center;gap:calc(12 * var(--u));color:#ddd;font-size:calc(14 * var(--u))}
 .seek input[type=range]{flex:1;accent-color:var(--red);height:calc(22 * var(--u));padding:0;background:none;border:0}
 .ctl{display:flex;align-items:center;gap:calc(6 * var(--u));margin-top:calc(6 * var(--u));flex-wrap:wrap}
@@ -189,13 +189,13 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 .pl .tbadge{display:none}
 .pmenu{position:absolute;right:3vw;bottom:calc(132 * var(--u));background:rgba(24,24,28,.97);border:calc(1 * var(--u)) solid #3a3a42;border-radius:calc(10 * var(--u));min-width:calc(240 * var(--u));max-height:60vh;overflow:auto;z-index:6;padding:calc(6 * var(--u))}
 .pmenu h4{margin:calc(8 * var(--u)) calc(12 * var(--u));color:var(--mu);font-size:calc(12 * var(--u));text-transform:uppercase;letter-spacing:calc(1 * var(--u))}
-.pmenu a{display:flex;gap:calc(10 * var(--u));align-items:center;padding:calc(10 * var(--u)) calc(14 * var(--u));border-radius:calc(6 * var(--u));cursor:pointer;white-space:nowrap}.pmenu a:hover,.pmenu a:focus-visible{background:#33333b}.pmenu a.on{color:#ffc933;font-weight:700}.pmenu a.on::before{content:"✓"}
-.chinfo{position:absolute;left:3vw;bottom:calc(140 * var(--u));background:rgba(14,14,17,.9);border-left:calc(4 * var(--u)) solid var(--red);border-radius:calc(6 * var(--u));padding:calc(14 * var(--u)) calc(18 * var(--u));min-width:calc(300 * var(--u));max-width:calc(560 * var(--u));z-index:5;transition:opacity .3s}
+.pmenu a{display:flex;gap:calc(10 * var(--u));align-items:center;padding:calc(10 * var(--u)) calc(14 * var(--u));border-radius:calc(6 * var(--u));cursor:pointer;white-space:nowrap}.pmenu a:hover,.pmenu a:focus-visible{background:#3a2a52}.pmenu a.on{color:#ffc933;font-weight:700}.pmenu a.on::before{content:"✓"}
+.chinfo{position:absolute;left:3vw;bottom:calc(140 * var(--u));background:rgba(12,7,20,.92);border-left:calc(4 * var(--u)) solid var(--red);border-radius:calc(6 * var(--u));padding:calc(14 * var(--u)) calc(18 * var(--u));min-width:calc(300 * var(--u));max-width:calc(560 * var(--u));z-index:5;transition:opacity .3s}
 .chinfo h3{font-size:calc(22 * var(--u))}.chinfo .n{color:var(--red);font-weight:900;margin-right:calc(8 * var(--u))}.chinfo p{margin:calc(6 * var(--u)) 0 0;color:#ccc;font-size:calc(14 * var(--u))}.chinfo .pb{height:calc(4 * var(--u));background:#444;margin-top:calc(8 * var(--u));border-radius:calc(2 * var(--u))}.chinfo .pb i{display:block;height:100%;background:var(--red)}
 .chdrawer{position:absolute;left:0;top:0;bottom:0;width:calc(420 * var(--u));max-width:88vw;width:min(calc(420 * var(--u)),88vw);background:rgba(10,10,12,.96);border-right:calc(1 * var(--u)) solid #333;z-index:7;overflow:auto;padding:calc(14 * var(--u)) 0}
 .chdrawer h4{margin:calc(6 * var(--u)) calc(18 * var(--u)) calc(12 * var(--u));color:var(--mu)}
-.chdrawer a{display:flex;align-items:center;gap:calc(12 * var(--u));padding:calc(10 * var(--u)) calc(18 * var(--u));cursor:pointer}.chdrawer a:hover,.chdrawer a:focus-visible{background:#26262c}.chdrawer a.cur{border-left:calc(4 * var(--u)) solid var(--red);background:#1e1e23}
-.chdrawer img.cth{width:calc(150 * var(--u));height:calc(84 * var(--u));object-fit:cover}.chdrawer img{width:calc(46 * var(--u));height:calc(34 * var(--u));object-fit:contain;background:#17171b;border-radius:calc(4 * var(--u))}.chdrawer .n{width:calc(34 * var(--u));color:var(--mu);font-weight:800;font-size:calc(13 * var(--u))}
+.chdrawer a{display:flex;align-items:center;gap:calc(12 * var(--u));padding:calc(10 * var(--u)) calc(18 * var(--u));cursor:pointer}.chdrawer a:hover,.chdrawer a:focus-visible{background:#2a1c3d}.chdrawer a.cur{border-left:calc(4 * var(--u)) solid var(--red);background:#221733}
+.chdrawer img.cth{width:calc(150 * var(--u));height:calc(84 * var(--u));object-fit:cover}.chdrawer img{width:calc(46 * var(--u));height:calc(34 * var(--u));object-fit:contain;background:#140e1f;border-radius:calc(4 * var(--u))}.chdrawer .n{width:calc(34 * var(--u));color:var(--mu);font-weight:800;font-size:calc(13 * var(--u))}
 .nextbox{position:absolute;right:3vw;bottom:calc(150 * var(--u));background:rgba(20,20,24,.96);border:calc(1 * var(--u)) solid #444;border-radius:calc(10 * var(--u));padding:calc(16 * var(--u)) calc(18 * var(--u));z-index:8;min-width:calc(300 * var(--u))}
 .numin{position:absolute;top:calc(70 * var(--u));left:3vw;font-size:calc(56 * var(--u));font-weight:900;color:#fff;text-shadow:0 calc(2 * var(--u)) calc(12 * var(--u)) #000;z-index:8}
 /* Mode télé */
@@ -216,14 +216,14 @@ body.tv .rowx .arr{display:none}
  .t10 b{font-size:calc(110 * var(--u))}.t10 .pc{width:calc(96 * var(--u))}
 }
 /* compatibilité anciens navigateurs (sticks TV) */
-.nofv :focus{outline:calc(3 * var(--u)) solid #fff;outline-offset:calc(2 * var(--u));box-shadow:0 0 0 calc(6 * var(--u)) rgba(229,9,20,.55)}
+.nofv :focus{outline:calc(3 * var(--u)) solid #fff;outline-offset:calc(2 * var(--u));box-shadow:0 0 0 calc(6 * var(--u)) rgba(147,51,234,.55)}
 .nofv .card:focus{transform:scale(1.06);z-index:5}
 .nofv .t10:focus{transform:scale(1.05)}
 .nofv .epr:focus{background:var(--panel2);border-color:#555}
 .nofv .prof:focus{color:#fff}
 .nofv .prof:focus .av{transform:scale(1.08);box-shadow:0 0 0 calc(4 * var(--u)) #fff}
-.nofv .pmenu a:focus{background:#33333b}
-.nofv .chdrawer a:focus{background:#26262c}
+.nofv .pmenu a:focus{background:#3a2a52}
+.nofv .chdrawer a:focus{background:#2a1c3d}
 @supports not (aspect-ratio:1/1){
 .card .pc{height:0;padding:0 0 150%}
 .card.wide .pc{height:0;padding:0 0 56.25%}
@@ -248,21 +248,21 @@ html:not(.tv) .nw .nwi em{display:none}
 
 #intro{position:fixed;inset:0;z-index:99999;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .9s}
 #intro.out{opacity:0}
-#intro .wd{position:relative;width:min(34vw,calc(34vh * 2.268));aspect-ratio:1125/496;filter:drop-shadow(0 0 1.2vw rgba(229,9,20,.55));opacity:1}
+#intro .wd{position:relative;width:min(34vw,calc(34vh * 2.268));aspect-ratio:1125/496;filter:drop-shadow(0 0 1.2vw rgba(147,51,234,.55));opacity:1}
 #intro .lt{position:absolute;left:0;top:0;width:100%;height:100%;clip-path:inset(0 0 100% 0);-webkit-clip-path:inset(0 0 100% 0)}
 #intro.go .lt{animation:introLt .5s cubic-bezier(.3,.6,.2,1) forwards}
 @keyframes introLt{0%{clip-path:inset(0 0 100% 0);-webkit-clip-path:inset(0 0 100% 0);filter:brightness(2.2)}100%{clip-path:inset(0 0 0 0);-webkit-clip-path:inset(0 0 0 0);filter:brightness(1)}}
 #intro canvas{position:absolute;inset:0;width:100%;height:100%}
 #intro .wd{z-index:2}#intro .c2{z-index:3}
 .gd{padding:0 calc(24 * var(--u)) calc(30 * var(--u))}.gdk{display:flex;flex-wrap:wrap;gap:calc(8 * var(--u));margin:0 0 calc(10 * var(--u))}
-.gdp{border:0;background:#1c1c20;color:#bbb;border-radius:999px;padding:calc(7 * var(--u)) calc(16 * var(--u));font-size:calc(16 * var(--u));cursor:pointer}.gdp.on{background:#e50914;color:#fff}
-.gdr{display:flex;gap:calc(8 * var(--u));margin-top:calc(6 * var(--u))}.gdl{width:calc(170 * var(--u));flex:none;height:calc(56 * var(--u));display:flex;align-items:center;gap:calc(8 * var(--u));background:#1c1c20;border:0;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(8 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden}
+.gdp{border:0;background:#1a1126;color:#bbb;border-radius:999px;padding:calc(7 * var(--u)) calc(16 * var(--u));font-size:calc(16 * var(--u));cursor:pointer}.gdp.on{background:#9333ea;color:#fff}
+.gdr{display:flex;gap:calc(8 * var(--u));margin-top:calc(6 * var(--u))}.gdl{width:calc(170 * var(--u));flex:none;height:calc(56 * var(--u));display:flex;align-items:center;gap:calc(8 * var(--u));background:#1a1126;border:0;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(8 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden}
 .gdl img{height:70%;max-width:calc(44 * var(--u));object-fit:contain}.gdl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gdx{background:none}
 .gdt{position:relative;flex:1;height:calc(56 * var(--u))}.gdh .gdt{height:calc(26 * var(--u));color:#999;font-size:calc(14 * var(--u))}.gdh .gdt span{position:absolute;top:0}.gdh .gdl{height:calc(26 * var(--u))}
-.gdc{position:absolute;top:0;height:100%;box-sizing:border-box;background:#1c1c20;border:1px solid #2b2b31;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(10 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden;display:flex;align-items:center}.gdc.now{background:#2a2a31}
+.gdc{position:absolute;top:0;height:100%;box-sizing:border-box;background:#1a1126;border:1px solid #2b2b31;color:#ddd;border-radius:calc(6 * var(--u));padding:0 calc(10 * var(--u));font-size:calc(15 * var(--u));text-align:left;cursor:pointer;overflow:hidden;display:flex;align-items:center}.gdc.now{background:#2a1c3d}
 .gdc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gdc:focus-visible,.gdl:focus-visible,.gdp:focus-visible{z-index:5}
-.gdn{position:absolute;top:0;bottom:0;width:2px;background:#e50914;z-index:3;pointer-events:none}
-.gdi{margin-top:calc(14 * var(--u));background:#1c1c20;border-radius:calc(8 * var(--u));padding:calc(10 * var(--u)) calc(14 * var(--u));min-height:calc(52 * var(--u));font-size:calc(16 * var(--u))}
+.gdn{position:absolute;top:0;bottom:0;width:2px;background:#9333ea;z-index:3;pointer-events:none}
+.gdi{margin-top:calc(14 * var(--u));background:#1a1126;border-radius:calc(8 * var(--u));padding:calc(10 * var(--u)) calc(14 * var(--u));min-height:calc(52 * var(--u));font-size:calc(16 * var(--u))}
 .gdc img{height:100%;aspect-ratio:16/9;object-fit:cover;margin-left:calc(-10 * var(--u));margin-right:calc(8 * var(--u));border-radius:calc(5 * var(--u)) 0 0 calc(5 * var(--u));flex:none}.gdi{display:flex;gap:calc(14 * var(--u));align-items:center}.gdm{height:calc(84 * var(--u));aspect-ratio:16/9;object-fit:cover;border-radius:calc(6 * var(--u));flex:none}
 </style>
 </head>
@@ -309,7 +309,7 @@ function zoomBar() {   // taille des affiches : [−] curseur [+], mémorisée p
   var cur = function () { return +prefs().zoom || (isTV() ? 176 : 172); };
   var mi = el('button', 'chip', '−'), pl = el('button', 'chip', '+'), sl = el('input');
   var set = function (z) { z = Math.max(100, Math.min(320, Math.round(z))); setPref('zoom', z); applyZoom(); sl.value = z; };
-  sl.type = 'range'; sl.min = 100; sl.max = 320; sl.step = 10; sl.value = cur(); sl.style.cssText = 'width:120px;padding:0;accent-color:#e50914;background:none;border:0'; sl.title = 'Taille des affiches';
+  sl.type = 'range'; sl.min = 100; sl.max = 320; sl.step = 10; sl.value = cur(); sl.style.cssText = 'width:120px;padding:0;accent-color:#9333ea;background:none;border:0'; sl.title = 'Taille des affiches';
   mi.title = 'Affiches plus petites'; pl.title = 'Affiches plus grandes'; mi.onclick = function () { set(cur() - 20); }; pl.onclick = function () { set(cur() + 20); }; sl.oninput = function () { set(+sl.value); };
   w.append(el('span', 'msg', 'Affiches'), mi, sl, pl); if (isTV()) sl.style.display = 'none'; return w;
 }
@@ -378,7 +378,7 @@ async function showLogin() {
   document.body.append(w); var f = $('.prof', w); if (f) f.focus();
 }
 function pinPad(u, w) {
-  var v = '', pad = el('div', 'login fade', '<div class="av" style="width:90px;height:90px;border-radius:12px;display:grid;place-items:center;font-size:40px;font-weight:800;background:linear-gradient(135deg,var(--red),#6d0309)">' + esc(u.name.charAt(0).toUpperCase()) + '</div><h1 style="font-size:28px">Code PIN de ' + esc(u.name) + '</h1><div class="dots"></div><div class="pin"></div><button class="btn ghost" data-a="back">Retour</button>');
+  var v = '', pad = el('div', 'login fade', '<div class="av" style="width:90px;height:90px;border-radius:12px;display:grid;place-items:center;font-size:40px;font-weight:800;background:linear-gradient(135deg,var(--red),#3b0f7a)">' + esc(u.name.charAt(0).toUpperCase()) + '</div><h1 style="font-size:28px">Code PIN de ' + esc(u.name) + '</h1><div class="dots"></div><div class="pin"></div><button class="btn ghost" data-a="back">Retour</button>');
   var dots = $('.dots', pad), keys = $('.pin', pad);
   var draw = function () { dots.innerHTML = Array(Math.max(4, v.length)).fill(0).map(function (_, i) { return '<i class="' + (i < v.length ? 'f' : '') + '"></i>'; }).join(''); };
   var submit = async function () { if (v.length < 4) return; try { pad.remove(); w.remove(); S.loginOpen = false; await login(u.id, v); } catch (e) { toast(e.message); S.loginOpen = false; showLogin(); } };
@@ -530,7 +530,7 @@ function buildHeader() {
   if (c.iptv.m3u) tabs.push(['m3u', 'Playlist M3U']);
   tabs.push(['list', 'Ma liste'], ['youtube', 'YouTube']); if (S.me.admin) tabs.push(['screen', '🖥 Écran du PC']); if (!document.documentElement.classList.contains('tv')) tabs.push(['remote', '🎤 Télécommande']);
   $('#top').innerHTML = '<a class="logo" href="#/home">' + LOGO + '</a><nav id="nav">' + tabs.map(function (t) { return '<a href="#/' + t[0] + '" data-r="' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</nav>' +
-    (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#e50914;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
+    (S.me.admin ? '<button class="ibtn" id="bscan" title="Scanner les bibliothèques (nouveaux films et séries)">' + ic('refresh') + '</button>' : '') + (S.me.kid ? '' : '<button class="ibtn" id="bdl" title="Téléchargements en cours" style="position:relative;font-size:20px;line-height:1">⬇<span id="bdn" style="display:none;position:absolute;top:-2px;right:-4px;background:#9333ea;color:#fff;border-radius:9px;font-size:11px;min-width:17px;height:17px;line-height:17px;text-align:center;font-weight:700"></span></button>') + '<button class="ibtn" id="bs" title="Rechercher">' + ic('search') + '</button><button class="ibtn" id="bu" title="Profil"><span class="avatar">' + esc(S.me.name.charAt(0).toUpperCase()) + '</span></button>';
   $('#bs').onclick = function () { go('#/search'); };
   if ($('#bdl')) { $('#bdl').onclick = function () { dlDlg(); };
     if (!S.dlT) S.dlT = setInterval(async function () { var b = $('#bdn'); if (!b || document.hidden || !S.me) return; try { var r = await api('/api/dl-list'), n = (r.jobs || []).filter(function (j) { return j.state === 'run' || j.state === 'queue'; }).length; b.textContent = n; b.style.display = n ? 'block' : 'none'; } catch (e) {} }, 8000); } if ($('#bscan')) $('#bscan').onclick = scanNow; $('#bu').onclick = userMenu;
@@ -547,12 +547,12 @@ function userMenu() {
 }
 function prefsDlg() {
   var p = prefs(), o = openOv('<div class="dh2">Préférences de lecture</div><div style="padding:18px 22px"><label><input type="checkbox" id="pm" ' + (p.music ? 'checked' : '') + '> Musique d’ambiance sur les fiches</label>' +
-    '<label class="fld">Volume de la musique</label><input type="range" id="pv" min="0" max="100" value="' + Math.round(p.vol * 100) + '" style="width:100%;accent-color:#e50914">' +
+    '<label class="fld">Volume de la musique</label><input type="range" id="pv" min="0" max="100" value="' + Math.round(p.vol * 100) + '" style="width:100%;accent-color:#9333ea">' +
     '<label class="fld"><input type="checkbox" id="pa" ' + (p.autonext ? 'checked' : '') + '> Lire automatiquement l’épisode suivant</label>' +
-    '<label class="fld"><input type="checkbox" id="pf" ' + (p.forceAudio ? 'checked' : '') + '> Toujours convertir le son en stéréo (à activer si vous n’entendez rien sur la télé)</label><label class="fld">Sous-titres préférés</label><select id="ps"><option value="off">Aucun</option><option value="fr">Français</option><option value="en">Anglais</option></select>' +
+    '<label class="fld"><input type="checkbox" id="pn" ' + (p.nwvideo === true || (p.nwvideo !== false && !isTV()) ? 'checked' : '') + '> Aperçu vidéo dans la fenêtre « épisode suivant » (à décocher si l’image reste noire)</label>' + '<label class="fld"><input type="checkbox" id="pf" ' + (p.forceAudio ? 'checked' : '') + '> Toujours convertir le son en stéréo (à activer si vous n’entendez rien sur la télé)</label><label class="fld">Sous-titres préférés</label><select id="ps"><option value="off">Aucun</option><option value="fr">Français</option><option value="en">Anglais</option></select>' +
     '<label class="fld">Qualité par défaut</label><select id="pq"><option value="auto">Auto</option><option value="2160">4K</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select><label class="fld">Durée de l’intro (cet appareil)</label><select id="pi"><option value="0">Vidéo seule</option><option value="20">20 secondes (boucle)</option><option value="30">30 secondes (boucle)</option><option value="45">45 secondes (boucle)</option><option value="60">60 secondes (boucle)</option></select><label class="fld">Cet appareil lit la 4K</label><select id="p4"><option value="auto">Automatique</option><option value="yes">Oui (télé 4K)</option><option value="no">Non (stick 1080p : conversion en 1080p)</option></select></div><div class="df"><span></span><button class="btn red" id="pk">Enregistrer</button></div>', 'sm');
   $('#ps', o.dlg).value = p.subs; $('#pq', o.dlg).value = p.quality; $('#p4', o.dlg).value = p.res4k || 'auto'; try { $('#pi', o.dlg).value = localStorage.getItem('tbsa.introSec') || '0'; } catch (e) {}
-  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); setPref('res4k', $('#p4').value); try { localStorage.setItem('tbsa.introSec', $('#pi').value); } catch (e) {} o.close(); toast('Préférences enregistrées'); };
+  $('#pk', o.dlg).onclick = function () { setPref('music', $('#pm').checked); setPref('vol', $('#pv').value / 100); setPref('autonext', $('#pa').checked); setPref('forceAudio', $('#pf').checked); setPref('nwvideo', $('#pn').checked); setPref('subs', $('#ps').value); setPref('quality', $('#pq').value); setPref('res4k', $('#p4').value); try { localStorage.setItem('tbsa.introSec', $('#pi').value); } catch (e) {} o.close(); toast('Préférences enregistrées'); };
 }
 async function scanNow() { try { document.body.classList.add('scanning'); await post('/api/scan'); toast('Scan lancé…'); pollScan(); } catch (e) { document.body.classList.remove('scanning'); toast(e.message); } }
 async function pollScan(n) {
@@ -606,7 +606,7 @@ function listItemCard(it) {
 ROUTES.home = async function (v) {
   var media = allMedia(), cont = continueList(), favs = (S.st.lists.filter(function (l) { return l.id === 'fav'; })[0] || { items: [] }).items;
   v.innerHTML = '';
-  if (S.me.admin && S.cfg.dataError) v.append(el('div', 'pad', '<p class="msg" style="color:#ff8a8a;border:1px solid #7a0409;border-radius:8px;padding:12px 16px;background:rgba(122,4,9,.25)">⚠ Impossible d’enregistrer vos réglages dans « ' + esc(S.cfg.dataDir) + ' » (' + esc(S.cfg.dataError) + '). Ils seraient perdus au prochain démarrage : lancez TBSA-Serveur depuis un dossier où vous pouvez écrire, ou définissez la variable TBSA_DATA.</p>'));
+  if (S.me.admin && S.cfg.dataError) v.append(el('div', 'pad', '<p class="msg" style="color:#d4b5ff;border:1px solid #3b0f7a;border-radius:8px;padding:12px 16px;background:rgba(122,4,9,.25)">⚠ Impossible d’enregistrer vos réglages dans « ' + esc(S.cfg.dataDir) + ' » (' + esc(S.cfg.dataError) + '). Ils seraient perdus au prochain démarrage : lancez TBSA-Serveur depuis un dossier où vous pouvez écrire, ou définissez la variable TBSA_DATA.</p>'));
   if (!media.length && !S.cfg.iptv.xtream && !S.cfg.iptv.m3u) {
     v.innerHTML = '<div class="pad"><h2 class="pt">Bienvenue sur TBSA-Serveur</h2><p class="msg">' + (S.me.admin ? 'Votre serveur est prêt, il ne contient pas encore de contenu. Ajoutez une bibliothèque (vos dossiers de films et séries) ou connectez votre IPTV.' : 'Aucun contenu n’est disponible pour ce profil pour le moment.') + '</p>' +
       (S.me.admin ? '<p><button class="btn red" id="hs">Ouvrir les réglages</button></p>' : '') + '</div>'; if ($('#hs')) $('#hs').onclick = function () { go('#/settings/libs'); }; return;
@@ -879,7 +879,7 @@ function heroDetail(f, m, acts) {
   var h = el('div', 'dh'), bg = f.backdrop || m.bd || '';
   var run = m.kind === 'movie' ? (f.runtime ? fmtRun(f.runtime) : '') : (f.runtime ? fmtRun(f.runtime) + ' / épisode' : '');
   h.innerHTML = '<div class="hb"' + (bg ? ' style="background-image:url(\'' + esc(bg) + '\')"' : '') + '></div><div class="dposter">' + (m.poster ? '<img src="' + esc(m.poster) + '" alt="">' : '') + '</div><div class="dinfo"><h1>' + esc(m.t) + '</h1><div class="meta">' + (f.rating ? '<span class="rate">★ ' + (+f.rating).toFixed(1) + '</span>' : '') + (m.y && m.kind !== 'saga' ? '<span>' + m.y + '</span>' : '') + (f.cert ? '<span class="cert">' + esc(f.cert) + '</span>' : '') + (run ? '<span>' + run + '</span>' : '') + (m.kind === 'show' ? '<span>' + m.n + ' épisode' + (m.n > 1 ? 's' : '') + '</span>' : '') + (m.kind === 'saga' ? '<span>' + m.n + ' films' + (m.items[0].year && m.items[m.n - 1].year ? ' · ' + m.items[0].year + ' – ' + m.items[m.n - 1].year : '') + '</span>' : '') + (f.status && m.kind === 'show' ? '<span>' + esc(f.status) + '</span>' : '') + '</div>' +
-    '<div class="chips" style="margin-bottom:6px">' + (f.genres || []).map(function (g) { return '<span class="chip">' + esc(g) + '</span>'; }).join('') + (m.tags || []).filter(function (t) { return (f.genres || []).indexOf(t) < 0; }).map(function (t) { return '<span class="chip" style="border-color:#7a0409">' + esc(t) + '</span>'; }).join('') + '</div>' +
+    '<div class="chips" style="margin-bottom:6px">' + (f.genres || []).map(function (g) { return '<span class="chip">' + esc(g) + '</span>'; }).join('') + (m.tags || []).filter(function (t) { return (f.genres || []).indexOf(t) < 0; }).map(function (t) { return '<span class="chip" style="border-color:#3b0f7a">' + esc(t) + '</span>'; }).join('') + '</div>' +
     (f.tagline ? '<div class="tag">« ' + esc(f.tagline) + ' »</div>' : '') + '<p class="ov-text">' + esc(f.overview || 'Aucun résumé disponible.' + (S.me.admin && !S.cfg.tmdbSet ? ' Ajoutez une clé TMDB dans Réglages pour récupérer résumés, affiches et casting.' : '')) + '</p>' +
     '<div class="crew">' + tagsLine(f.directors, m.kind === 'show' ? 'Création' : 'Réalisation') + tagsLine(f.writers, 'Scénario') + tagsLine(f.countries, 'Pays') + '</div><div class="acts"></div></div>';
   acts(h); var ab = $('.acts', h); if (ab && m.ref) { ab.parentNode.insertBefore(starBar(m), ab); if (m.kind === 'movie' || m.kind === 'show') { var tb = actBtn('Bande-annonce', 'ghost', function () { playTrailer(m); }, 'play'); ab.insertBefore(tb, ab.children[1] || null); if (S.me.admin) { var tb2 = actBtn('Modifier la bande-annonce', 'ghost', function () { trailerDlg(m); }); ab.insertBefore(tb2, tb.nextSibling); } } } heroBgFix(h, bg, m.poster); return h;
@@ -917,7 +917,7 @@ function pickVideo(itemId) {
   return new Promise(function (resolve) {
     var o = openOv('<div class="dh2"><span>Choisir une vidéo sur le PC</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div style="padding:6px 16px" class="msg cur"></div><div class="list" style="flex:1;overflow:auto;padding:4px 16px 12px"></div>');
     o.noBg = true; var list = $('.list', o.dlg), cur = $('.cur', o.dlg), done = false, close0 = o.close, fin = function (v) { if (done) return; done = true; close0(); resolve(v); }; o.close = function () { fin(null); }; $('[data-a=x]', o.dlg).onclick = function () { fin(null); };
-    var row = function (t, fn, cls) { var a = el('div', 'epr', esc(t)); a.tabIndex = 0; a.style.cssText = 'padding:10px 14px;margin-bottom:6px' + (cls ? ';border-left:4px solid #e50914' : ''); a.onclick = fn; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; list.append(a); return a; };
+    var row = function (t, fn, cls) { var a = el('div', 'epr', esc(t)); a.tabIndex = 0; a.style.cssText = 'padding:10px 14px;margin-bottom:6px' + (cls ? ';border-left:4px solid #9333ea' : ''); a.onclick = fn; a.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); a.click(); } }; list.append(a); return a; };
     async function nav(p, first) {
       list.innerHTML = '<div class="spin"></div>'; var r; try { r = await api('/api/browse?files=1&path=' + encodeURIComponent(p || '') + (first && itemId != null ? '&item=' + itemId : '')); } catch (e) { list.innerHTML = '<p class="msg">' + esc(e.message) + '</p>'; return; }
       cur.textContent = r.path || 'Ordinateur : choisissez un disque'; list.innerHTML = ''; o.onBack = r.path ? function () { nav(r.parent === null || r.parent === undefined ? '' : r.parent); return true; } : null;
@@ -966,7 +966,7 @@ async function dlStart(body) { try { var r = await post('/api/dl-start', body); 
 
 async function destRow(key, host) {
   var cfgd = {}; try { cfgd = await api('/api/dl-list'); } catch (e) {}
-  var d = el('div', 'epr'); d.tabIndex = 0; d.style.cssText = 'padding:10px 14px;margin:10px 0;border-left:4px solid #e50914';
+  var d = el('div', 'epr'); d.tabIndex = 0; d.style.cssText = 'padding:10px 14px;margin:10px 0;border-left:4px solid #9333ea';
   var show = function (v) { d.innerHTML = '<div class="tx" style="width:100%"><h3>Dossier d’enregistrement sur le PC</h3><div class="msg" style="word-break:break-all">' + esc(v || 'Dans le dossier du film (automatique)') + '</div><div class="msg" style="font-size:12px">Appuyer sur OK pour choisir un autre dossier (tous les disques)</div></div>'; };
   show(cfgd[key]);
   d.onclick = async function () { var f = await pickFolder(cfgd[key] || ''); if (f === null) return; var b = {}; b[key] = f; try { await post('/api/dl-config', b); cfgd[key] = f; show(f); } catch (e) { toast(e.message); } };
@@ -1540,12 +1540,14 @@ async function showNextWindow() {
   PL.root.append(box); var nw = PL.nw = { el: box, idx: PL.i + 1, nv: null, plan: null, t0: 0, tok: tok, committing: false };
   $('[data-a=nwgo]', box).onclick = function (e) { e.stopPropagation(); commitNext(true); }; $('[data-a=nwx]', box).onclick = function (e) { e.stopPropagation(); cancelNext(); };
   nw.iv = setInterval(function () { var c = $('[data-r=ncd]', box); if (c) c.textContent = Math.max(0, Math.ceil(totalDur() - curPos())); }, 250);
-  if (nxt.kind === 'local') {   // aperçu vidéo : seulement pour les fichiers du serveur (une seule connexion IPTV autorisée chez beaucoup de fournisseurs)
+  var pv = prefs(), useVid = pv.nwvideo === true || (pv.nwvideo !== false && !isTV());   // sur la télé : affiche fixe (un 2e décodeur vidéo donne souvent une image noire)
+  if (nxt.poster) $('.nwv', box).style.backgroundImage = 'url("' + nxt.poster + '")';
+  if (nxt.kind === 'local' && useVid) {   // aperçu vidéo : seulement pour les fichiers du serveur (une seule connexion IPTV autorisée chez beaucoup de fournisseurs)
     var plan; try { plan = await planFor(nxt); } catch (e) { return; } if (!PL.nw || PL.nw.tok !== tok) return;
     var nv = document.createElement('video'); nv.muted = true; nv.setAttribute('playsinline', ''); nv.preload = 'auto'; nw.plan = plan; nw.nv = nv; nw.t0 = startPosOf(nxt);
     $('.nwv', box).append(nv); nv.src = srcFor(nxt, plan, nw.t0); if (plan.mode === 'direct' && nw.t0 > 1) nv.addEventListener('loadedmetadata', function f() { nv.removeEventListener('loadedmetadata', f); try { nv.currentTime = nw.t0; } catch (e) {} });
     nv.play().then(function () { setTimeout(function () { try { nv.pause(); } catch (e) {} }, 140); }).catch(function () {});   // 1re image + mise en mémoire, puis pause
-  } else if (nxt.poster) { $('.nwv', box).style.backgroundImage = 'url("' + nxt.poster + '")'; }
+  }
 }
 // L'épisode suivant grandit jusqu'au plein écran, puis devient le lecteur principal (sans coupure pour les fichiers du serveur)
 function commitNext(fromUser) {
@@ -1944,7 +1946,7 @@ function libWizard(idx, libs, after) {
   var st = { type: cur.type || 'movies', name: cur.name || '', lang: cur.language || 'fr-FR', paths: (cur.paths || []).slice(), groups: cur.groups === true, touched: edit };
   var o = openOv(''); o.noBg = true;
   function draw(err) {
-    o.dlg.innerHTML = '<div class="dh2"><span>' + (edit ? 'Modifier la bibliothèque' : 'Ajouter une bibliothèque') + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dside">' + ['Sélectionner un type', 'Ajouter des dossiers', 'Avancé'].map(function (t, i) { return '<a data-i="' + i + '" tabindex="0" class="' + (i === tab ? 'on' : '') + '">' + t + '</a>'; }).join('') + '</div><div class="dmain"></div></div><div class="df"><button class="btn ghost" data-a="c">Annuler</button><span class="msg" style="color:#ff8a8a">' + esc(err || '') + '</span><button class="btn red" data-a="n">' + (tab < 2 ? 'Suivant' : edit ? 'Enregistrer' : 'Ajouter la bibliothèque') + '</button></div>';
+    o.dlg.innerHTML = '<div class="dh2"><span>' + (edit ? 'Modifier la bibliothèque' : 'Ajouter une bibliothèque') + '</span><button class="ibtn" data-a="x">' + ic('x') + '</button></div><div class="db"><div class="dside">' + ['Sélectionner un type', 'Ajouter des dossiers', 'Avancé'].map(function (t, i) { return '<a data-i="' + i + '" tabindex="0" class="' + (i === tab ? 'on' : '') + '">' + t + '</a>'; }).join('') + '</div><div class="dmain"></div></div><div class="df"><button class="btn ghost" data-a="c">Annuler</button><span class="msg" style="color:#d4b5ff">' + esc(err || '') + '</span><button class="btn red" data-a="n">' + (tab < 2 ? 'Suivant' : edit ? 'Enregistrer' : 'Ajouter la bibliothèque') + '</button></div>';
     var mn = $('.dmain', o.dlg);
     if (tab === 0) {
       mn.innerHTML = '<div>Sélectionnez le type de votre bibliothèque</div><div class="chips" style="margin:16px 0 8px">' + TYPES.map(function (t) { return '<button class="chip' + (st.type === t[0] ? ' on' : '') + '" data-k="' + t[0] + '" style="padding:16px 22px;font-size:17px">' + t[2] + ' ' + t[1] + '</button>'; }).join('') + '</div><label class="fld">Nom (par exemple « Action »)</label><input class="nm" value="' + esc(st.name) + '" placeholder="Ex. Action"><label class="fld">Langue des affiches et résumés</label><select class="lg">' + LANGOPT.map(function (l) { return '<option value="' + l[0] + '"' + (st.lang === l[0] ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('') + '</select>';
@@ -1988,7 +1990,7 @@ ROUTES.settings = async function (v, p) {
   v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">Réglages</h2></div><div class="tabs">' + T.map(function (t) { return '<a class="chip' + (t[0] === tab ? ' on' : '') + '" href="#/settings/' + t[0] + '">' + t[1] + '</a>'; }).join('') + '</div><div class="panel" id="pn"></div>';
   var pn = $('#pn', v), save = async function (b, msg) { try { await post('/api/config', b); toast(msg || 'Enregistré'); await reloadAll(); buildHeader(); } catch (e) { toast(e.message); } };
   if (tab === 'general') {
-    pn.innerHTML = '<h3>Serveur</h3><p class="msg">TBSA-Serveur version ' + esc(cfg.version) + '<br>Dossier des données (réglages, profils, progression) : <b>' + esc(cfg.dataDir) + '</b>' + (cfg.dataNote ? '<br>' + esc(cfg.dataNote) : '') + (cfg.dataError ? '<br><span style="color:#ff8a8a">⚠ Écriture impossible : ' + esc(cfg.dataError) + '</span>' : '') + '</p><label class="fld">Nom du serveur</label><input id="gn" value="' + esc(cfg.serverName) + '"><label class="fld">Scan automatique des bibliothèques (minutes, 0 = désactivé)</label><input id="gs" type="number" min="0" max="1440" value="' + cfg.scanMinutes + '" style="width:140px"><p class="msg">En plus de ce délai, TBSA-Serveur détecte automatiquement les fichiers ajoutés ou supprimés dans vos dossiers.</p>' +
+    pn.innerHTML = '<h3>Serveur</h3><p class="msg">TBSA-Serveur version ' + esc(cfg.version) + '<br>Dossier des données (réglages, profils, progression) : <b>' + esc(cfg.dataDir) + '</b>' + (cfg.dataNote ? '<br>' + esc(cfg.dataNote) : '') + (cfg.dataError ? '<br><span style="color:#d4b5ff">⚠ Écriture impossible : ' + esc(cfg.dataError) + '</span>' : '') + '</p><label class="fld">Nom du serveur</label><input id="gn" value="' + esc(cfg.serverName) + '"><label class="fld">Scan automatique des bibliothèques (minutes, 0 = désactivé)</label><input id="gs" type="number" min="0" max="1440" value="' + cfg.scanMinutes + '" style="width:140px"><p class="msg">En plus de ce délai, TBSA-Serveur détecte automatiquement les fichiers ajoutés ou supprimés dans vos dossiers.</p>' +
       '<h3>Sagas de films</h3><label class="fld">Regrouper les films d’une même saga (Saw, Terminator, Resident Evil…) sous une seule affiche</label><select id="gsg"><option value="0">Désactivé</option><option value="2">À partir de 2 films</option><option value="3">À partir de 3 films</option><option value="4">À partir de 4 films</option></select><p class="msg">La saga est détectée automatiquement grâce à TMDB (clé TMDB requise). Pour un film non reconnu : Modifier &gt; Général &gt; Saga.</p>' +
       '<h3>Musique d’ambiance</h3><label><input type="checkbox" id="gm" ' + (cfg.themeMusic ? 'checked' : '') + '> Rechercher un extrait de la bande originale en ligne (iTunes) quand aucun fichier <b>theme.mp3</b> n’est présent dans le dossier du film ou de la série.</label><p class="msg">Astuce : placez un fichier <b>theme.mp3</b> (ou .m4a, .ogg) dans le dossier d’un film ou d’une série, il sera joué sur sa fiche. Chaque profil peut couper la musique dans ses préférences.</p><button class="btn red" id="sv">Enregistrer</button>' +
       '<h3>Sauvegarde</h3><p class="msg">Un seul fichier contient vos réglages, profils, bibliothèques, clés, notes et modifications. À garder sur une clé USB pour tout retrouver sur un nouvel ordinateur.</p><a class="btn" id="bk" href="/api/backup" download>Télécharger une sauvegarde</a> <button class="btn ghost" id="rs">Restaurer une sauvegarde…</button><input type="file" id="rf" accept=".tbsa,application/json" style="display:none">';
@@ -2023,7 +2025,7 @@ ROUTES.settings = async function (v, p) {
     $('#sv').onclick = async function () { await save({ xtream: { host: $('#xh').value, user: $('#xu').value, pass: $('#xp').value }, m3u: $('#mu').value }, 'IPTV enregistré'); Object.keys(XTC).forEach(function (k) { delete XTC[k]; }); };
     $('#ts').onclick = async function () { var t = $('#tr'); t.textContent = 'Test en cours…'; try { var c = await api('/api/xt?action=get_live_categories'); t.textContent = Array.isArray(c) ? '✓ Connexion réussie : ' + c.length + ' catégories de chaînes.' : '✗ Réponse inattendue (identifiants incorrects ?).'; } catch (e) { t.textContent = '✗ ' + e.message + ' (enregistrez d’abord, puis testez)'; } };
   } else if (tab === 'meta') {
-    pn.innerHTML = '<h3>Affiches, résumés, casting (TMDB)</h3><p class="msg">Créez un compte gratuit sur themoviedb.org → Paramètres → API, puis collez ici la clé API (v3) ou le « jeton d’accès en lecture » (v4).</p><label class="fld">Clé TMDB' + (cfg.tmdb.set ? ' (déjà enregistrée, vide = inchangée)' : '') + '</label><input id="tk" type="password" autocomplete="new-password"><p class="msg" style="color:' + (cfg.tmdb.error ? '#ff8a8a' : '#46d369') + '">' + (cfg.tmdb.error ? esc(cfg.tmdb.error) : (cfg.tmdb.set ? '✓ Clé enregistrée' : '')) + '</p><div class="acts"><button class="btn red" id="sv">Enregistrer</button>' + (cfg.tmdb.set ? '<button class="btn ghost" id="rm">Retirer la clé</button>' : '') + '<button class="btn ghost" id="rf">Actualiser toutes les fiches</button></div>';
+    pn.innerHTML = '<h3>Affiches, résumés, casting (TMDB)</h3><p class="msg">Créez un compte gratuit sur themoviedb.org → Paramètres → API, puis collez ici la clé API (v3) ou le « jeton d’accès en lecture » (v4).</p><label class="fld">Clé TMDB' + (cfg.tmdb.set ? ' (déjà enregistrée, vide = inchangée)' : '') + '</label><input id="tk" type="password" autocomplete="new-password"><p class="msg" style="color:' + (cfg.tmdb.error ? '#d4b5ff' : '#46d369') + '">' + (cfg.tmdb.error ? esc(cfg.tmdb.error) : (cfg.tmdb.set ? '✓ Clé enregistrée' : '')) + '</p><div class="acts"><button class="btn red" id="sv">Enregistrer</button>' + (cfg.tmdb.set ? '<button class="btn ghost" id="rm">Retirer la clé</button>' : '') + '<button class="btn ghost" id="rf">Actualiser toutes les fiches</button></div>';
     $('#sv').onclick = async function () { await save({ tmdb: $('#tk').value }, 'Clé enregistrée, récupération des fiches en cours…'); pollScan(); ROUTES.settings(v, ['meta']); }; if ($('#rm')) $('#rm').onclick = async function () { await save({ clearTmdb: true }, 'Clé retirée'); ROUTES.settings(v, ['meta']); };
     $('#rf').onclick = async function () { await post('/api/library-action', { action: 'refresh' }); toast('Actualisation lancée'); pollScan(); };
   } else if (tab === 'transcode') {
@@ -2034,7 +2036,7 @@ ROUTES.settings = async function (v, p) {
     $('#th').value = tr.hw; $('#tp').value = tr.preset; $('#sv').onclick = function () { save({ transcoder: { hw: $('#th').value, preset: $('#tp').value, maxSessions: $('#tm').value } }); };
     if ($('#fi')) $('#fi').onclick = async function () { await post('/api/ffmpeg/install'); var f = $('#fs'); S.actT = setInterval(async function () { var s = await api('/api/ffmpeg'); f.textContent = s.install.msg || 'Installation…'; if (s.install.state !== 'running') { clearInterval(S.actT); if (s.install.state === 'done') { await reloadAll(); ROUTES.settings(v, ['transcode']); } } }, 3000); $('#fi').disabled = true; };
   } else if (tab === 'network') {
-    var nw = await api('/api/network'); pn.innerHTML = '<h3>Se connecter depuis la télé ou un autre appareil</h3>' + (nw.urls.length ? '<p class="msg">Sur la télé (ou tout appareil du même réseau), ouvrez le navigateur et tapez :</p>' + nw.urls.map(function (u) { return '<p><b style="color:#ff5a63;font-size:22px">' + esc(u) + '/?tv=1</b></p>'; }).join('') + '<p class="msg">Le <b>?tv=1</b> active le mode télécommande (flèches, OK, Retour). L’application Android (téléphone / Android TV) trouve le serveur automatiquement.</p>' : '<p class="msg">Aucune adresse réseau trouvée : vérifiez que le PC est connecté au Wi-Fi ou au câble.</p>') + '<p class="msg">Windows : si la télé ne voit pas le serveur, lancez <b>autoriser-pare-feu.bat</b> (clic droit → Exécuter en tant qu’administrateur).</p>' + '<h3>Installer l’application sur un stick TV (Fire TV, Android TV, Google TV)</h3>' + (nw.apk && nw.urls.length ? '<p class="msg">Sur le stick, installez l’application gratuite <b>Downloader</b>, ouvrez-la et tapez cette adresse :</p>' + nw.urls.map(function (u) { return '<p><b style="color:#ff5a63;font-size:22px">' + esc(u) + '/apk</b></p>'; }).join('') + '<p class="msg">Acceptez l’installation, puis lancez « TBSA ». Elle retrouve le serveur toute seule. Détails dans LISEZMOI-STICK.txt.</p>' : '<p class="msg">Le fichier <b>TBSA-Serveur.apk</b> n’est pas encore sur le serveur. Obtenez-le avec LISEZMOI-STICK.txt, puis placez-le à côté de TBSA-Serveur.exe : il sera téléchargeable depuis le stick à l’adresse <b>http://IP-DU-PC:' + nw.port + '/apk</b>. En attendant, le navigateur du stick (Silk, Firefox, TV Bro) peut ouvrir <b>http://IP-DU-PC:' + nw.port + '/?tv=1</b>.</p>') + '<h3>Accès depuis l’extérieur</h3><p class="msg">Le serveur est conçu pour le réseau local. Pour regarder hors de chez vous, utilisez un VPN privé (par exemple Tailscale) plutôt que d’ouvrir le port 8585 sur Internet, et protégez vos profils avec un PIN.</p>';
+    var nw = await api('/api/network'); pn.innerHTML = '<h3>Se connecter depuis la télé ou un autre appareil</h3>' + (nw.urls.length ? '<p class="msg">Sur la télé (ou tout appareil du même réseau), ouvrez le navigateur et tapez :</p>' + nw.urls.map(function (u) { return '<p><b style="color:#c084fc;font-size:22px">' + esc(u) + '/?tv=1</b></p>'; }).join('') + '<p class="msg">Le <b>?tv=1</b> active le mode télécommande (flèches, OK, Retour). L’application Android (téléphone / Android TV) trouve le serveur automatiquement.</p>' : '<p class="msg">Aucune adresse réseau trouvée : vérifiez que le PC est connecté au Wi-Fi ou au câble.</p>') + '<p class="msg">Windows : si la télé ne voit pas le serveur, lancez <b>autoriser-pare-feu.bat</b> (clic droit → Exécuter en tant qu’administrateur).</p>' + '<h3>Installer l’application sur un stick TV (Fire TV, Android TV, Google TV)</h3>' + (nw.apk && nw.urls.length ? '<p class="msg">Sur le stick, installez l’application gratuite <b>Downloader</b>, ouvrez-la et tapez cette adresse :</p>' + nw.urls.map(function (u) { return '<p><b style="color:#c084fc;font-size:22px">' + esc(u) + '/apk</b></p>'; }).join('') + '<p class="msg">Acceptez l’installation, puis lancez « TBSA ». Elle retrouve le serveur toute seule. Détails dans LISEZMOI-STICK.txt.</p>' : '<p class="msg">Le fichier <b>TBSA-Serveur.apk</b> n’est pas encore sur le serveur. Obtenez-le avec LISEZMOI-STICK.txt, puis placez-le à côté de TBSA-Serveur.exe : il sera téléchargeable depuis le stick à l’adresse <b>http://IP-DU-PC:' + nw.port + '/apk</b>. En attendant, le navigateur du stick (Silk, Firefox, TV Bro) peut ouvrir <b>http://IP-DU-PC:' + nw.port + '/?tv=1</b>.</p>') + '<h3>Accès depuis l’extérieur</h3><p class="msg">Le serveur est conçu pour le réseau local. Pour regarder hors de chez vous, utilisez un VPN privé (par exemple Tailscale) plutôt que d’ouvrir le port 8585 sur Internet, et protégez vos profils avec un PIN.</p>';
   } else if (tab === 'activity') {
     pn.innerHTML = '<h3>Lecture en cours</h3><div id="an"></div><h3>Bibliothèque</h3><div class="kv" id="as"></div><h3>Historique récent</h3><div id="ah"></div><h3>Journal du serveur</h3><pre class="log" id="lg"></pre>';
     var load = async function () {
