@@ -164,7 +164,8 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 #toast.on{opacity:1;transform:translateX(-50%)}
 .spin{width:calc(44 * var(--u));height:calc(44 * var(--u));border:calc(4 * var(--u)) solid #333;border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;margin:calc(60 * var(--u)) auto}
 @keyframes sp{to{transform:rotate(360deg)}}
-.fade{animation:fd .35s ease}@keyframes fd{from{opacity:0;transform:translateY(calc(8 * var(--u)))}to{opacity:1;transform:none}}
+.bubs{display:flex;gap:calc(18 * var(--u));overflow-x:auto;padding:calc(18 * var(--u)) 4vw calc(22 * var(--u));scrollbar-width:none;align-items:center}.bub{flex:none;position:relative;width:calc(118 * var(--u));height:calc(118 * var(--u));border-radius:50%;border:calc(3 * var(--u)) solid transparent;color:#fff;background:radial-gradient(circle at 35% 28%,#e2c4ff,#9333ea 38%,#2a0a52 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 calc(12 * var(--u));cursor:pointer;font-size:calc(15 * var(--u));font-weight:800;line-height:1.15;opacity:.88;overflow:hidden}.bub::before{content:'';position:absolute;top:10%;left:18%;width:38%;height:20%;border-radius:50%;background:rgba(255,255,255,.35)}.bub .bn{position:relative;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%}.bub small{position:relative;font-weight:400;font-size:.8em;margin-top:calc(3 * var(--u));color:#f0e2ff}.bub.on{opacity:1;border-color:#fff;box-shadow:0 0 calc(26 * var(--u)) rgba(168,85,247,.65)}.bub:focus-visible,.nofv .bub:focus{opacity:1;transform:scale(1.12);outline:none;border-color:#fff}
+.fade{animation:fd .35s ease}body.tv .fade{animation:none}body.tv .rail{scroll-snap-type:none}body.tv .card,body.tv .t10{transition:none}body.tv .card .pc{box-shadow:none}@keyframes fd{from{opacity:0;transform:translateY(calc(8 * var(--u)))}to{opacity:1;transform:none}}
 .pills{display:flex;gap:calc(8 * var(--u));overflow-x:auto;padding:0 4vw calc(12 * var(--u));scrollbar-width:none}.pills::-webkit-scrollbar{display:none}
 .chcard .pc{aspect-ratio:16/10;background:#140e1f;padding:calc(10 * var(--u))}.chcard .pc img{object-fit:contain;padding:calc(14 * var(--u))}
 .chcard .num{position:absolute;top:calc(6 * var(--u));left:calc(8 * var(--u));font-size:calc(12 * var(--u));color:#bbb;font-weight:800;z-index:2}
@@ -616,7 +617,7 @@ ROUTES.home = async function (v) {
   for (var q = 0; q < cont.length && !hm; q++) { var ci = S.byK[cont[q].k]; if (ci) { hm = ci.type === 'shows' ? mShow(S.showBy[ci.libId + '|' + ci.show]) : mMovie(ci); } }
   if (!hm) { var pool = media.filter(function (m) { return m.kind !== 'saga' && m.bd && m.rating >= 6; }).sort(function (a, b) { return b.added - a.added; }).slice(0, 12); if (!pool.length) pool = media.filter(function (m) { return m.kind !== 'saga' && m.poster; }).slice(0, 8); hm = pool.length ? pool[Math.floor(Math.random() * pool.length)] : (media.filter(function (m) { return m.kind !== 'saga'; })[0] || media[0]); }
   if (hm) {
-    var full = null; try { full = await Promise.race([api('/api/item/' + hm.id), new Promise(function (r) { setTimeout(function () { r(null); }, 700); })]); } catch (e) {}
+    var full = null; try { full = await Promise.race([api('/api/item/' + hm.id), new Promise(function (r) { setTimeout(function () { r(null); }, isTV() ? 250 : 700); })]); } catch (e) {}
     var hero = el('div', 'hero'), bg = (full && full.backdrop) || hm.bd || hm.poster; hero.innerHTML = '<div class="hb"' + (bg ? ' style="background-image:url(\'' + esc(bg) + '\')"' : '') + '></div><div class="in"><h1>' + esc(hm.t) + '</h1><div class="meta">' + (full && full.rating ? '<span class="rate">★ ' + (+full.rating).toFixed(1) + '</span>' : '') + (hm.y ? '<span>' + hm.y + '</span>' : '') + (hm.cert ? '<span class="cert">' + esc(hm.cert) + '</span>' : '') + (hm.genres.length ? '<span>' + esc(hm.genres.slice(0, 3).join(' · ')) + '</span>' : '') + '</div>' +
       '<p class="ov-text">' + esc((full && full.overview) || '') + '</p><div class="btns"><button class="btn light" id="hp">' + ic('play', 22) + ' ' + (cont.length && hm.pct ? 'Reprendre' : 'Lecture') + '</button><button class="btn" id="hi">' + ic('info', 22) + ' Plus d’infos</button></div></div>';
     v.append(hero); $('#hp', hero).onclick = function () { playMedia(hm); }; $('#hi', hero).onclick = function () { go(hm.href); };
@@ -627,7 +628,7 @@ ROUTES.home = async function (v) {
   var section = function (head, list, kind) {
     if (!list.length) return; var isShow = kind === 'show', cardsOf = function (l) { return l.map(function (m) { return mCard(m); }); };
     v.append(el('h2', 'sechead', head));
-    v.append(rowx(isShow ? 'Séries ajoutées récemment' : 'Films ajoutés récemment', cardsOf(list.slice().sort(function (a, b) { return b.added - a.added; }).slice(0, 20))));
+    v.append(rowx(isShow ? 'Séries ajoutées récemment' : 'Films ajoutés récemment', cardsOf(list.slice().sort(function (a, b) { return b.added - a.added; }).slice(0, isTV() ? 14 : 20))));
     var tp = list.filter(function (m) { return m.rating > 0 && m.poster; }).sort(function (a, b) { return b.rating - a.rating; }).slice(0, 10); if (tp.length >= 3) v.append(rowx(isShow ? 'Top 10 des séries' : 'Top 10 des films', top10(tp)));
     var lw = lastW.filter(function (e) { return (S.byK[e.k].type === 'shows') === isShow; })[0];   // « Parce que vous avez regardé » : même type que le titre regardé
     if (lw) {
@@ -638,8 +639,8 @@ ROUTES.home = async function (v) {
       }).catch(function () { ph.remove(); });
     }
     var gc = {}; list.forEach(function (m) { m.genres.forEach(function (g) { gc[g] = (gc[g] || 0) + 1; }); });
-    Object.keys(gc).filter(function (g) { return gc[g] >= 2; }).sort(function (a, b) { return gc[b] - gc[a]; }).slice(0, 8).forEach(function (g) {
-      v.append(rowx((isShow ? 'Séries · ' : 'Films · ') + g, cardsOf(list.filter(function (m) { return m.genres.indexOf(g) >= 0; }).sort(function (a, b) { return b.rating - a.rating; }).slice(0, 20))));
+    Object.keys(gc).filter(function (g) { return gc[g] >= 2; }).sort(function (a, b) { return gc[b] - gc[a]; }).slice(0, isTV() ? 3 : 8).forEach(function (g) {
+      v.append(rowx((isShow ? 'Séries · ' : 'Films · ') + g, cardsOf(list.filter(function (m) { return m.genres.indexOf(g) >= 0; }).sort(function (a, b) { return b.rating - a.rating; }).slice(0, isTV() ? 14 : 20))));
     });
     S.cats.forEach(function (c) { var l = list.filter(function (m) { return m.tags.indexOf(c) >= 0; }); if (l.length) v.append(rowx((isShow ? 'Séries' : 'Films') + ' · Collection ' + c, cardsOf(l))); });
   };
@@ -652,14 +653,14 @@ ROUTES.home = async function (v) {
 /* ===== Films / Séries : grille avec filtres ===== */
 function browse(kind, title) {
   return async function (v) {
-    var libs = S.cfg.libraries.filter(function (l) { return l.type === kind; }), F = S.f[kind] || (S.f[kind] = { lib: -1, genre: '', cat: '', sort: 'title', unseen: false, q: '', max: 240 }); if (F.cont === undefined) F.cont = false;
+    var libs = S.cfg.libraries.filter(function (l) { return l.type === kind; }), F = S.f[kind] || (S.f[kind] = { lib: -1, genre: '', cat: '', sort: 'title', unseen: false, q: '', max: (document.body.classList.contains('tv') ? 72 : 240) }); if (F.cont === undefined) F.cont = false;
     var base = kind === 'shows' ? S.shows.map(mShow) : kind === 'movies' ? filmMedia(-1) : S.lib.filter(function (i) { return i.type === kind; }).map(mMovie);
     v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 14px">' + title + ' · tout parcourir</h2></div><div class="bar" id="fb"></div><div id="fg"></div>';
     var fb = $('#fb', v), fg = $('#fg', v);
     if (kind !== 'other') { var hb = el('button', 'chip', '‹ Accueil ' + title); hb.onclick = function () { go('#/' + kind); }; fb.append(hb); }
     var genres = {}; base.forEach(function (m) { m.genres.forEach(function (g) { genres[g] = 1; }); }); genres = Object.keys(genres).sort();
     var sel = function (id, opts, val) { var s = el('select'); s.id = id; s.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join(''); s.value = val; return s; };
-    if (libs.length > 1) { var ch = el('div', 'chips'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) { var c = el('button', 'chip' + (F.lib === l[0] ? ' on' : ''), esc(l[1])); c.onclick = function () { F.lib = l[0]; F.max = 240; ROUTES[kind](v, ['all']); }; ch.append(c); }); fb.append(ch); fb.style.paddingBottom = '12px'; var br = el('div'); br.style.flexBasis = '100%'; fb.append(br); }
+    if (libs.length > 1) { var ch = el('div', 'chips'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) { var c = el('button', 'chip' + (F.lib === l[0] ? ' on' : ''), esc(l[1])); c.onclick = function () { F.lib = l[0]; F.max = (isTV() ? 72 : 240); ROUTES[kind](v, ['all']); }; ch.append(c); }); fb.append(ch); fb.style.paddingBottom = '12px'; var br = el('div'); br.style.flexBasis = '100%'; fb.append(br); }
     var sg = sel('fgn', [['', 'Tous les genres']].concat(genres.map(function (g) { return [g, g]; })), F.genre), sc = sel('fcat', [['', 'Toutes les collections']].concat(S.cats.map(function (c) { return [c, c]; })), F.cat);
     var ss = sel('fso', [['added', 'Ajoutés récemment'], ['title', 'Titre A → Z'], ['year', 'Année (récent)'], ['rating', 'Note publique'], ['mine', 'Ma note'], ['played', 'Dernière lecture']], F.sort);
     var un = el('button', 'chip' + (F.unseen ? ' on' : ''), 'Non vus'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '180px';
@@ -670,10 +671,10 @@ function browse(kind, title) {
       cnt.textContent = l.length + ' titre' + (l.length > 1 ? 's' : ''); fg.innerHTML = '';
       if (!l.length) { fg.innerHTML = '<div class="emp">' + (base.length ? 'Aucun résultat avec ces filtres.' : 'Aucun contenu. Ajoutez une bibliothèque de ce type dans Réglages.') + '</div>'; return; }
       var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (m) { g.append(mCard(m)); }); fg.append(g);
-      if (l.length > F.max) { var more = el('div', 'bar', ''); var b = el('button', 'btn', 'Afficher plus (' + (l.length - F.max) + ')'); b.onclick = function () { F.max += 240; draw(); }; more.append(b); fg.append(more); }
+      if (l.length > F.max) { var more = el('div', 'bar', ''); var b = el('button', 'btn', 'Afficher plus (' + (l.length - F.max) + ')'); b.onclick = function () { F.max += (isTV() ? 72 : 240); draw(); }; more.append(b); fg.append(more); }
     };
-    sg.onchange = function () { F.genre = sg.value; F.max = 240; draw(); }; sc.onchange = function () { F.cat = sc.value; F.max = 240; draw(); }; ss.onchange = function () { F.sort = ss.value; draw(); };
-    un.onclick = function () { F.unseen = !F.unseen; un.classList.toggle('on', F.unseen); draw(); }; var qt; qi.oninput = function () { clearTimeout(qt); qt = setTimeout(function () { F.q = qi.value; F.max = 240; draw(); }, 200); };
+    sg.onchange = function () { F.genre = sg.value; F.max = (isTV() ? 72 : 240); draw(); }; sc.onchange = function () { F.cat = sc.value; F.max = (isTV() ? 72 : 240); draw(); }; ss.onchange = function () { F.sort = ss.value; draw(); };
+    un.onclick = function () { F.unseen = !F.unseen; un.classList.toggle('on', F.unseen); draw(); }; var qt; qi.oninput = function () { clearTimeout(qt); qt = setTimeout(function () { F.q = qi.value; F.max = (isTV() ? 72 : 240); draw(); }, 200); };
     draw();
   };
 }
@@ -684,11 +685,17 @@ ROUTES.other = browse('other', 'Autres vidéos');
 // Accueil d'une bibliothèque : dernières nouveautés, reprise, mieux notés, genres…
 function libHome(kind, title) {
   return async function (v) {
-    var libs = S.cfg.libraries.filter(function (l) { return l.type === kind; }), F = S.f[kind] || (S.f[kind] = { lib: -1, genre: '', cat: '', sort: 'title', unseen: false, q: '', max: 240 });
+    var libs = S.cfg.libraries.filter(function (l) { return l.type === kind; }), F = S.f[kind] || (S.f[kind] = { lib: -1, genre: '', cat: '', sort: 'title', unseen: false, q: '', max: (document.body.classList.contains('tv') ? 72 : 240) });
     var base = kind === 'shows' ? S.shows.filter(function (s) { return F.lib < 0 || s.libId === F.lib; }).map(mShow) : filmMedia(F.lib);
     v.innerHTML = ''; var hd = el('div', 'pad', '<h2 class="pt" style="padding:0 0 14px">' + title + '</h2>'); v.append(hd);
     var bar = el('div', 'bar'); bar.style.paddingBottom = '10px';
-    if (libs.length > 1) [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) { var c = el('button', 'chip' + (F.lib === l[0] ? ' on' : ''), esc(l[1])); c.onclick = function () { F.lib = l[0]; ROUTES[kind](v); }; bar.append(c); });
+    if (libs.length > 1) {
+      var bubs = el('div', 'bubs'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) {
+        var n = kind === 'shows' ? S.shows.filter(function (x) { return l[0] < 0 || x.libId === l[0]; }).length : filmMedia(l[0]).length;
+        var c = el('button', 'bub' + (F.lib === l[0] ? ' on' : ''), '<span class="bn">' + esc(l[1]) + '</span><small>' + n + ' ' + (kind === 'shows' ? 'série' : 'film') + (n > 1 ? 's' : '') + '</small>'); c.dataset.fk = 'bub:' + l[0];
+        c.onclick = function () { F.lib = l[0]; ROUTES[kind](v); }; bubs.append(c);
+      }); v.append(bubs);
+    }
     var all = el('button', 'chip', '☰ Tout parcourir (' + base.length + ')'); all.onclick = function () { go('#/' + kind + '/all'); }; bar.append(all);
     if (S.me.admin) { var sb = el('button', 'chip scanbtn', ic('refresh', 16) + ' Scanner / actualiser'); sb.onclick = scanNow; bar.append(sb); }
     bar.append(zoomBar()); v.append(bar);
@@ -707,7 +714,7 @@ function libHome(kind, title) {
     rail('Pas encore vus', by(function (a, b) { return b.rating - a.rating; }).filter(function (m) { return !m.w; }));
     if (kind === 'movies') rail('Sagas', base.filter(function (m) { return m.kind === 'saga'; }).sort(function (a, b) { return b.added - a.added; }));
     var gc = {}; base.forEach(function (m) { (m.genres || []).forEach(function (g) { gc[g] = (gc[g] || 0) + 1; }); });
-    Object.keys(gc).filter(function (g) { return gc[g] >= 4; }).sort(function (a, b) { return gc[b] - gc[a]; }).slice(0, 8).forEach(function (g) { rail(g, by(function (a, b) { return b.added - a.added; }).filter(function (m) { return (m.genres || []).indexOf(g) >= 0; })); });
+    Object.keys(gc).filter(function (g) { return gc[g] >= 4; }).sort(function (a, b) { return gc[b] - gc[a]; }).slice(0, isTV() ? 3 : 8).forEach(function (g) { rail(g, by(function (a, b) { return b.added - a.added; }).filter(function (m) { return (m.genres || []).indexOf(g) >= 0; })); });
     S.cats.forEach(function (c) { rail(c, by(function (a, b) { return b.added - a.added; }).filter(function (m) { return (m.tags || []).indexOf(c) >= 0; })); });
     var end = el('div', 'bar'), eb = el('button', 'btn', 'Tout parcourir (' + base.length + ' titres)'); eb.onclick = function () { go('#/' + kind + '/all'); }; end.append(eb); v.append(end);
   };
