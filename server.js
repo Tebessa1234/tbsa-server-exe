@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.21.4', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.21.7', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -700,7 +700,10 @@ async function dlYt(j) {
   });
 }
 setTimeout(dlRestore, 4000);
-const RPOLL = new Map(); let SCREEN = null;
+const RPOLL = new Map(); let SCREEN = null, SCRP = null;
+function scrStop() { if (SCRP) { try { SCRP.f.kill('SIGKILL'); } catch {} SCRP = null; } }
+function scrSend(res, st) { try { res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': st.jpg.length, 'Cache-Control': 'no-store', 'X-N': String(st.n) }); res.end(st.jpg); } catch {} }
+setInterval(() => { if (SCRP && Date.now() - SCRP.last > 8000) scrStop(); }, 3000).unref();
 const ACTIVE = new Set();
 async function transcode(req, res, it, q) {
   if (!FFMPEG) { res.writeHead(501); return res.end('ffmpeg absent'); }
@@ -868,6 +871,32 @@ SRV = http.createServer(async (req, res) => {
       });
       f.stderr.on('data', () => {}); const end = () => { try { f.kill('SIGKILL'); } catch {} if (SCREEN === f) SCREEN = null; }; res.on('close', end); f.on('close', () => { try { res.end(); } catch {} }); return;
     }
+    if (p === '/api/screen/frame' && !POST) {   // écran du PC, mode « à la demande » : la télé réclame la dernière image seulement quand elle a fini d'afficher la précédente => aucun retard qui s'accumule
+      if (!admin) { res.writeHead(403); return res.end(); } if (!FFMPEG) { res.writeHead(503); return res.end('ffmpeg manquant'); }
+      const w = Math.max(320, Math.min(2560, +q.get('w') || 1280)), fps = Math.max(2, Math.min(30, +q.get('fps') || 20)), ql = Math.max(2, Math.min(20, +q.get('q') || 8)), since = +q.get('since') || 0, key = w + '|' + fps + '|' + ql;
+      if (SCRP && SCRP.key !== key) scrStop();
+      if (!SCRP) {
+        if (SCREEN) { try { SCREEN.kill('SIGKILL'); } catch {} SCREEN = null; }
+        const src = process.platform === 'win32' ? ['-f', 'gdigrab', '-framerate', String(fps), '-draw_mouse', '1', '-i', 'desktop'] : ['-re', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720:rate=' + fps];
+        const f = spawn(FFMPEG, ['-v', 'error', '-fflags', 'nobuffer', '-flags', 'low_delay', ...src, '-an', '-vf', 'scale=' + w + ':-2:flags=fast_bilinear', '-q:v', String(ql), '-flush_packets', '1', '-f', 'image2pipe', '-c:v', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        const st = SCRP = { f, key, jpg: null, n: 0, waiters: [], last: Date.now(), acc: Buffer.alloc(0) };
+        f.stdout.on('data', c => {
+          st.acc = Buffer.concat([st.acc, c]);
+          for (;;) {
+            const a = st.acc.indexOf(Buffer.from([0xff, 0xd8])); if (a < 0) { st.acc = Buffer.alloc(0); break; }
+            const e = st.acc.indexOf(Buffer.from([0xff, 0xd9]), a + 2); if (e < 0) { if (a > 0) st.acc = st.acc.subarray(a); break; }
+            st.jpg = st.acc.subarray(a, e + 2); st.acc = st.acc.subarray(e + 2); st.n++;
+            const ws = st.waiters; st.waiters = []; ws.forEach(x => scrSend(x.res, st));
+          }
+          if (st.acc.length > 8e6) st.acc = Buffer.alloc(0);
+        });
+        f.stderr.on('data', () => {}); f.on('close', () => { if (SCRP === st) SCRP = null; st.waiters.forEach(x => { try { x.res.writeHead(204); x.res.end(); } catch {} }); });
+      }
+      const st = SCRP; st.last = Date.now(); try { req.socket.setNoDelay(true); } catch {}
+      if (st.jpg && st.n > since) return scrSend(res, st);
+      const wt = { res }; st.waiters.push(wt); const to = setTimeout(() => { st.waiters = st.waiters.filter(x => x !== wt); try { res.writeHead(204); res.end(); } catch {} }, 3000);
+      res.on('close', () => { clearTimeout(to); st.waiters = st.waiters.filter(x => x !== wt); }); return;
+    }
     if (p === '/api/remote/poll') {          // la télé (mode TV) interroge ici, très léger (pas de connexion maintenue)
       const r = RPOLL.get(me.id) || { seen: 0, q: [] }; RPOLL.set(me.id, r); r.seen = Date.now(); const q = r.q; r.q = []; return J(req, res, { q });
     }
@@ -992,6 +1021,21 @@ SRV = http.createServer(async (req, res) => {
     if (p.startsWith('/api/trailer-prepare/')) { const i = itemFor(me, +p.slice(21)), f = i && trSrc(i); if (!f) return J(req, res, {}, 404); if (await trReady(f)) return J(req, res, { ok: true, same: true }); const c = await compatTrailer(f); return c ? J(req, res, { ok: true }) : J(req, res, { error: 'Conversion impossible (ffmpeg ?)' }, 500); }
     if (p.startsWith('/trailer-file/')) { const i = itemFor(me, +p.slice(14)), f = i && trSrc(i); if (!f) { res.writeHead(404); return res.end(); } let g = f; if (u.searchParams.get('c') || !(await trReady(f))) { const cp = compatPath(f); if (cp && fs.existsSync(cp)) g = cp; } return serveFile(req, res, g, false); }
     if (p.startsWith('/api/item/')) { const i = itemFor(me, +p.slice(10)); return i ? J(req, res, itemFull(i, S)) : J(req, res, { error: 'introuvable' }, 404); }
+    if (p.startsWith('/api/still/')) {   // belle image (1920 px) extraite de l'épisode/film : fond de la fenêtre « épisode suivant »
+      const i = itemFor(me, +p.slice(11));
+      if (!i || !FFMPEG || /^https?:/.test(i.file)) { res.writeHead(404); return res.end(); }
+      try {
+        let mt = 0; try { mt = fs.statSync(i.file).mtimeMs; } catch {}
+        const f = path.join(IMGC, 'st_' + crypto.createHash('md5').update(i.file + '|' + mt).digest('hex') + '.jpg');
+        if (!fs.existsSync(f)) {
+          while (CHQ.n >= 2) await new Promise(r => setTimeout(r, 120));
+          CHQ.n++;
+          try { for (const t of [150, 40, 5]) { const b = await runFF(['-v', 'error', '-ss', String(t), '-i', i.file, '-map', '0:v:0', '-frames:v', '1', '-vf', 'scale=1920:-2', '-q:v', '3', '-f', 'image2pipe', '-c:v', 'mjpeg', '-'], 25000); if (b && b.length > 5000) { try { fs.mkdirSync(IMGC, { recursive: true }); fs.writeFileSync(f, b); } catch {} break; } } } finally { CHQ.n--; }
+        }
+        if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+        return send(res, 200, 'image/jpeg', fs.readFileSync(f), { 'Cache-Control': 'private, max-age=86400' });
+      } catch { res.writeHead(404); return res.end(); }
+    }
     if (p.startsWith('/api/chthumb/')) {   // vignette d'un chapitre (image extraite du film, mise en cache)
       const i = itemFor(me, +p.slice(13)), t = Math.max(0, +q.get('t') || 0);
       if (!i || !FFMPEG || /^https?:/.test(i.file)) { res.writeHead(404); return res.end(); }

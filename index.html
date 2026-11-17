@@ -333,12 +333,13 @@ function confirmBox(msg, ok, label) {
 
 function playIntro() {
   try { if (sessionStorage.getItem('tbsa_intro') || /[?&]nointro/.test(location.search)) return Promise.resolve(); sessionStorage.setItem('tbsa_intro', '1'); } catch (e) {}
+  S.introOn = true;
   return new Promise(function (done) {
     var o = document.createElement('div'), v = document.createElement('video'), fin = false, t1, t2, t0 = Date.now();
     o.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#000;transition:opacity .5s';
     v.style.cssText = 'width:100%;height:100%;object-fit:cover;background:#000;display:block'; v.setAttribute('playsinline', ''); v.preload = 'auto'; v.src = '/assets/intro.mp4';
-    function end() { if (fin) return; fin = true; clearTimeout(t1); clearTimeout(t2); document.removeEventListener('keydown', skip, true); try { v.pause(); } catch (e) {} o.style.opacity = '0'; setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); done(); }, 450); }
-    function skip(e) { if (e && e.type === 'keydown' && (e.repeat || Date.now() - t0 < 2500)) { if (e.preventDefault) e.preventDefault(); return; }   /* le OK de la télécommande qui lance l'appli ne doit pas couper l'intro */
+    function end() { if (fin) return; fin = true; clearTimeout(t1); clearTimeout(t2); document.removeEventListener('keydown', skip, true); try { v.pause(); } catch (e) {} Promise.race([S.readyP || Promise.resolve(), new Promise(function (r) { setTimeout(r, 7000); })]).then(function () { setTimeout(function () { o.style.transition = 'opacity .9s ease'; o.style.opacity = '0'; setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); S.introOn = false; done(); }, 950); }, 120); }); }
+    function skip(e) { if (e && e.type === 'keydown' && (e.repeat || Date.now() - t0 < 2500)) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); return; }   /* le OK de la télécommande qui lance l'appli ne doit pas couper l'intro */
       if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); } end(); }
     var retries = 0;
     v.onended = end;
@@ -355,7 +356,13 @@ function playIntro() {
   });
 }
 async function boot() {
-  await playIntro();
+  var rdy; S.readyP = new Promise(function (r) { rdy = r; });
+  var ip = playIntro();   // l'appli se prépare PENDANT l'intro (cachée derrière) : à la fin, l'accueil est déjà prêt et on ne voit plus de chargement
+  if (S.introOn) await Promise.race([ip, new Promise(function (r) { setTimeout(r, 2500); })]);
+  try { await bootApp(); } finally { rdy(); }
+  await ip;
+}
+async function bootApp() {
   applyTV(); document.title = BRAND;
   try { document.querySelector(':focus-visible'); } catch (e) { document.documentElement.classList.add('nofv'); }
   try { var gd = document.createElement('div'); gd.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden;top:0'; var g1 = document.createElement('span'), g2 = document.createElement('span'); g1.style.height = g2.style.height = '1px'; gd.appendChild(g1); gd.appendChild(g2); document.body.appendChild(gd); var okGap = gd.offsetHeight === 3; document.body.removeChild(gd); if (!okGap) document.documentElement.classList.add('nogap'); } catch (e) {}
@@ -396,7 +403,7 @@ async function login(id, pin) {
 }
 async function enter(user) {
   S.me = user; applyZoom(); $('#view').innerHTML = '<div class="spin"></div>';
-  await reloadAll(); buildHeader(); if (!location.hash || location.hash === '#/') location.hash = '#/home'; route();
+  await reloadAll(); buildHeader(); if (!location.hash || location.hash === '#/') location.hash = '#/home'; await route();
 }
 async function reloadAll() {
   var r = await Promise.all([api('/api/config'), api('/api/library'), api('/api/state'), api('/api/categories'), api('/api/saga-ov').catch(function () { return {}; })]);
@@ -576,7 +583,7 @@ function route() {
   S.restore = (isBack || S.keep === curH) ? S.pos[curH] : null; S.keep = null; if (!S.restore) delete S.lastK[curH];
   var root = $('#view'), v = el('div', 'fade'); v.append(el('div', 'spin')); root.innerHTML = ''; root.append(v); window.scrollTo(0, 0); S.nav++;
   var f = ROUTES[name] || ROUTES.home;
-  Promise.resolve().then(function () { return f(v, parts.slice(1)); }).then(function () { if (tk === S.rt) { applyRestore(); tvFocus(); } })
+  return Promise.resolve().then(function () { return f(v, parts.slice(1)); }).then(function () { if (tk === S.rt) { applyRestore(); tvFocus(); } })
     .catch(function (e) { if (e.message !== 'auth') { v.innerHTML = '<div class="emp">Une erreur est survenue : ' + esc(e.message) + '</div>'; console.error(e); } });
 }
 
@@ -1123,12 +1130,24 @@ ROUTES.screen = async function (v) {   // écran du PC en direct sur la télé (
   var w = el('div'); w.style.cssText = 'position:fixed;inset:0;z-index:50;background:#000;display:flex;align-items:center;justify-content:center';
   var img = el('img'); img.style.cssText = 'max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain';
   var bar = el('div'); bar.style.cssText = 'position:fixed;top:10px;right:12px;z-index:60;display:flex;gap:8px;opacity:.9';
-  var pr = { hd: [1600, 12, 7], sd: [1280, 15, 8], lo: [960, 20, 10] }, cur = 'sd';
-  var start = function () { var p = pr[cur]; img.src = '/api/screen?w=' + p[0] + '&fps=' + p[1] + '&q=' + p[2] + '&_=' + Date.now(); };
+  var pr = { hd: [1600, 15, 7], sd: [1280, 20, 8], lo: [960, 25, 10] }, cur = 'sd', gen = 0, last = '';
+  // Mode « à la demande » : on demande une image, on l'affiche, puis on demande la suivante => pas de file d'attente, donc pas de retard
+  var start = function () {
+    var my = ++gen, n = 0;
+    var pull = function () {
+      if (my !== gen || location.hash !== '#/screen') return; var p = pr[cur], x = new XMLHttpRequest();
+      x.open('GET', '/api/screen/frame?w=' + p[0] + '&fps=' + p[1] + '&q=' + p[2] + '&since=' + n + '&_=' + Date.now()); x.responseType = 'blob';
+      x.onload = function () {
+        if (my !== gen) return; if (x.status === 200) { n = +x.getResponseHeader('X-N') || n + 1; var u = URL.createObjectURL(x.response), old = last; last = u; img.onload = img.onerror = function () { if (old) URL.revokeObjectURL(old); pull(); }; img.src = u; }
+        else setTimeout(pull, x.status === 204 ? 0 : 1500);
+      };
+      x.onerror = function () { setTimeout(pull, 1500); }; x.send();
+    };
+    pull();
+  };
   var mk = function (t, f) { var b = el('button', 'btn sm ghost', t); b.onclick = f; bar.append(b); return b; };
   var qb = mk('Qualité : Normale', function () { cur = cur === 'sd' ? 'hd' : cur === 'hd' ? 'lo' : 'sd'; qb.textContent = 'Qualité : ' + (cur === 'sd' ? 'Normale' : cur === 'hd' ? 'Haute' : 'Légère'); start(); });
-  mk('✕ Fermer', function () { img.src = ''; goBack(); });
-  img.onerror = function () { setTimeout(function () { if (location.hash === '#/screen') start(); }, 1500); };
+  mk('✕ Fermer', function () { gen++; img.src = ''; goBack(); });
   w.append(img, bar); document.body.append(w); S.scr = w; start(); if (isTV()) setTimeout(function () { try { bar.querySelector('button').focus(); } catch (e) {} }, 300);
 };
 ROUTES.remote = async function (v) {
@@ -1560,7 +1579,7 @@ async function showNextWindow() {
   $('[data-a=nwgo]', box).onclick = function (e) { e.stopPropagation(); commitNext(true); }; $('[data-a=nwx]', box).onclick = function (e) { e.stopPropagation(); cancelNext(); };
   nw.iv = setInterval(function () { var c = $('[data-r=ncd]', box); if (c) c.textContent = Math.max(0, Math.ceil(totalDur() - curPos())); }, 250);
   var pv = prefs(), useVid = pv.nwvideo === true || (pv.nwvideo !== false && !isTV());   // sur la télé : affiche fixe (un 2e décodeur vidéo donne souvent une image noire)
-  if (nxt.poster) $('.nwv', box).style.backgroundImage = 'url("' + nxt.poster + '")';
+  var bgs = []; if (nxt.kind === 'local' && nxt.id && !useVid) bgs.push('url("/api/still/' + nxt.id + '")'); if (nxt.poster) bgs.push('url("' + nxt.poster + '")'); if (bgs.length) $('.nwv', box).style.backgroundImage = bgs.join(',');   // belle image de l\'épisode (l\'affiche sert de secours)
   if (nxt.kind === 'local' && useVid) {   // aperçu vidéo : seulement pour les fichiers du serveur (une seule connexion IPTV autorisée chez beaucoup de fournisseurs)
     var plan; try { plan = await planFor(nxt); } catch (e) { return; } if (!PL.nw || PL.nw.tok !== tok) return;
     var nv = document.createElement('video'); nv.muted = true; nv.setAttribute('playsinline', ''); nv.preload = 'auto'; nw.plan = plan; nw.nv = nv; nw.t0 = startPosOf(nxt);
