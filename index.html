@@ -61,7 +61,7 @@ label.fld{display:block;color:var(--mu);font-size:calc(13 * var(--u));margin:cal
 .hb::before{content:"";position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(11,11,12,.97) 0%,rgba(11,11,12,.74) 38%,rgba(11,11,12,.1) 80%)}
 body.hd::before{opacity:0}
 .dh>.hb{position:absolute;z-index:0}
-.hero .in{position:relative;z-index:1;max-width:calc(620 * var(--u))}
+.hero.lib{min-height:44vh;padding-bottom:calc(60 * var(--u))}.hero .in{position:relative;z-index:1;max-width:calc(620 * var(--u))}
 .hero h1{font-size:calc(64 * var(--u));font-size:clamp(calc(34 * var(--u)),5vw,calc(64 * var(--u)));font-weight:900;line-height:1.02;text-shadow:0 calc(3 * var(--u)) calc(24 * var(--u)) rgba(0,0,0,.7)}
 .meta{display:flex;gap:calc(12 * var(--u));align-items:center;flex-wrap:wrap;color:#d4d4d9;margin:calc(12 * var(--u)) 0;font-size:calc(15 * var(--u))}
 .meta .rate{color:#46d369;font-weight:700}
@@ -703,6 +703,17 @@ function libHome(kind, title) {
     if (!base.length) { v.append(el('div', 'emp', 'Aucun contenu. Ajoutez une bibliothèque de ce type dans Réglages.')); return; }
     var by = function (f) { return base.slice().sort(f); }, cards = function (l) { return l.map(function (m) { return mCard(m); }); }, N = 24, seen = {};
     var rail = function (t, l) { if (l.length) v.append(rowx(t, cards(l.slice(0, N)))); };
+    // Bandeau : le dernier titre à reprendre de cette bibliothèque (sinon un titre au hasard)
+    var hm = null, c0 = continueList();
+    for (var q = 0; q < c0.length && !hm; q++) { var ci = S.byK[c0[q].k]; if (ci && ci.type === kind && (F.lib < 0 || ci.libId === F.lib)) hm = kind === 'shows' ? (S.showBy[ci.libId + '|' + ci.show] ? mShow(S.showBy[ci.libId + '|' + ci.show]) : null) : mMovie(ci); }
+    var hasCont = !!hm;
+    if (!hm) { var pool = base.filter(function (m) { return m.kind !== 'saga' && (m.bd || m.poster); }).sort(function (a, b) { return b.added - a.added; }).slice(0, 12); if (pool.length) hm = pool[Math.floor(Math.random() * pool.length)]; }
+    if (hm) {
+      var full = null; try { full = await Promise.race([api('/api/item/' + hm.id), new Promise(function (r) { setTimeout(function () { r(null); }, isTV() ? 250 : 700); })]); } catch (e) {}
+      var hero = el('div', 'hero lib'), bg = (full && full.backdrop) || hm.bd || hm.poster; hero.innerHTML = '<div class="hb"' + (bg ? ' style="background-image:url(\'' + esc(bg) + '\')"' : '') + '></div><div class="in"><h1>' + esc(hm.t) + '</h1><div class="meta">' + (full && full.rating ? '<span class="rate">★ ' + (+full.rating).toFixed(1) + '</span>' : '') + (hm.y ? '<span>' + hm.y + '</span>' : '') + (hm.genres && hm.genres.length ? '<span>' + esc(hm.genres.slice(0, 3).join(' · ')) + '</span>' : '') + '</div>' +
+        '<p class="ov-text">' + esc((full && full.overview) || '') + '</p><div class="btns"><button class="btn light" id="hp">' + ic('play', 22) + ' ' + (hasCont && hm.pct ? 'Reprendre' : 'Lecture') + '</button><button class="btn" id="hi">' + ic('info', 22) + ' Plus d’infos</button></div></div>';
+      v.append(hero); $('#hp', hero).onclick = function () { playMedia(hm); }; $('#hi', hero).onclick = function () { go(hm.href); };
+    }
     // Reprendre
     var cl = continueList().filter(function (e) { var i = S.byK[e.k]; return i && i.type === kind && (F.lib < 0 || i.libId === F.lib); }), sd = {}, rc = [];
     cl.forEach(function (e) { var i = S.byK[e.k], key = kind === 'shows' ? i.libId + '|' + i.show : e.k; if (!sd[key]) { sd[key] = 1; rc.push(resumeCard(e)); } });
