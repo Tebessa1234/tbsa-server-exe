@@ -164,7 +164,7 @@ pre.log{background:#0a0a0c;border:calc(1 * var(--u)) solid var(--line);border-ra
 #toast.on{opacity:1;transform:translateX(-50%)}
 .spin{width:calc(44 * var(--u));height:calc(44 * var(--u));border:calc(4 * var(--u)) solid #333;border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;margin:calc(60 * var(--u)) auto}
 @keyframes sp{to{transform:rotate(360deg)}}
-.bubs{display:flex;gap:calc(18 * var(--u));overflow-x:auto;padding:calc(18 * var(--u)) 4vw calc(22 * var(--u));scrollbar-width:none;align-items:center}.bub{flex:none;position:relative;width:calc(118 * var(--u));height:calc(118 * var(--u));border-radius:50%;border:calc(3 * var(--u)) solid transparent;color:#fff;background:radial-gradient(circle at 35% 28%,#e2c4ff,#9333ea 38%,#2a0a52 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 calc(12 * var(--u));cursor:pointer;font-size:calc(15 * var(--u));font-weight:800;line-height:1.15;opacity:.88;overflow:hidden}.bub::before{content:'';position:absolute;top:10%;left:18%;width:38%;height:20%;border-radius:50%;background:rgba(255,255,255,.35)}.bub .bn{position:relative;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%}.bub small{position:relative;font-weight:400;font-size:.8em;margin-top:calc(3 * var(--u));color:#f0e2ff}.bub.on{opacity:1;border-color:#fff;box-shadow:0 0 calc(26 * var(--u)) rgba(168,85,247,.65)}.bub:focus-visible,.nofv .bub:focus{opacity:1;transform:scale(1.12);outline:none;border-color:#fff}
+.bubs{display:flex;gap:calc(18 * var(--u));overflow-x:auto;padding:calc(18 * var(--u)) 4vw calc(22 * var(--u));scrollbar-width:none;align-items:center}.bub{flex:none;position:relative;width:calc(118 * var(--u));height:calc(118 * var(--u));border-radius:50%;border:calc(3 * var(--u)) solid transparent;color:#fff;background:radial-gradient(circle at 35% 28%,#e2c4ff,#9333ea 38%,#2a0a52 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 calc(12 * var(--u));cursor:pointer;font-size:calc(15 * var(--u));font-weight:800;line-height:1.15;opacity:.88;overflow:hidden}.bub::before{content:'';position:absolute;top:10%;left:18%;width:38%;height:20%;border-radius:50%;background:rgba(255,255,255,.35)}.bub .bn{word-break:break-word;position:relative;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%}.bub small{position:relative;font-weight:400;font-size:.8em;margin-top:calc(3 * var(--u));color:#f0e2ff}.bub.on{opacity:1;border-color:#fff;box-shadow:0 0 calc(26 * var(--u)) rgba(168,85,247,.65)}.bub:focus-visible,.nofv .bub:focus{opacity:1;transform:scale(1.12);outline:none;border-color:#fff}
 .fade{animation:fd .35s ease}body.tv .fade{animation:none}body.tv .rail{scroll-snap-type:none}body.tv .card,body.tv .t10{transition:none}body.tv .card .pc{box-shadow:none}@keyframes fd{from{opacity:0;transform:translateY(calc(8 * var(--u)))}to{opacity:1;transform:none}}
 .pills{display:flex;gap:calc(8 * var(--u));overflow-x:auto;padding:0 4vw calc(12 * var(--u));scrollbar-width:none}.pills::-webkit-scrollbar{display:none}
 .chcard .pc{aspect-ratio:16/10;background:#140e1f;padding:calc(10 * var(--u))}.chcard .pc img{object-fit:contain;padding:calc(14 * var(--u))}
@@ -651,6 +651,13 @@ ROUTES.home = async function (v) {
 };
 
 /* ===== Films / Séries : grille avec filtres ===== */
+function libBubbles(kind, libs, F, pick) {
+  var bubs = el('div', 'bubs'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) {
+    var n = kind === 'shows' ? S.shows.filter(function (x) { return l[0] < 0 || x.libId === l[0]; }).length : filmMedia(l[0]).length;
+    var c = el('button', 'bub' + (F.lib === l[0] ? ' on' : ''), '<span class="bn">' + esc(l[1]) + '</span><small>' + n + ' ' + (kind === 'shows' ? 'série' : 'film') + (n > 1 ? 's' : '') + '</small>'); c.dataset.fk = 'bub:' + l[0];
+    c.onclick = function () { F.lib = l[0]; pick(); }; bubs.append(c);
+  }); return bubs;
+}
 function browse(kind, title) {
   return async function (v) {
     var libs = S.cfg.libraries.filter(function (l) { return l.type === kind; }), F = S.f[kind] || (S.f[kind] = { lib: -1, genre: '', cat: '', sort: 'title', unseen: false, q: '', max: (document.body.classList.contains('tv') ? 72 : 240) }); if (F.cont === undefined) F.cont = false;
@@ -660,7 +667,7 @@ function browse(kind, title) {
     if (kind !== 'other') { var hb = el('button', 'chip', '‹ Accueil ' + title); hb.onclick = function () { go('#/' + kind); }; fb.append(hb); }
     var genres = {}; base.forEach(function (m) { m.genres.forEach(function (g) { genres[g] = 1; }); }); genres = Object.keys(genres).sort();
     var sel = function (id, opts, val) { var s = el('select'); s.id = id; s.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join(''); s.value = val; return s; };
-    if (libs.length > 1) { var ch = el('div', 'chips'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) { var c = el('button', 'chip' + (F.lib === l[0] ? ' on' : ''), esc(l[1])); c.onclick = function () { F.lib = l[0]; F.max = (isTV() ? 72 : 240); ROUTES[kind](v, ['all']); }; ch.append(c); }); fb.append(ch); fb.style.paddingBottom = '12px'; var br = el('div'); br.style.flexBasis = '100%'; fb.append(br); }
+    if (libs.length > 1) { v.insertBefore(libBubbles(kind, libs, F, function () { F.max = (isTV() ? 72 : 240); ROUTES[kind](v, ['all']); }), fb); }
     var sg = sel('fgn', [['', 'Tous les genres']].concat(genres.map(function (g) { return [g, g]; })), F.genre), sc = sel('fcat', [['', 'Toutes les collections']].concat(S.cats.map(function (c) { return [c, c]; })), F.cat);
     var ss = sel('fso', [['added', 'Ajoutés récemment'], ['title', 'Titre A → Z'], ['year', 'Année (récent)'], ['rating', 'Note publique'], ['mine', 'Ma note'], ['played', 'Dernière lecture']], F.sort);
     var un = el('button', 'chip' + (F.unseen ? ' on' : ''), 'Non vus'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '180px';
@@ -689,13 +696,7 @@ function libHome(kind, title) {
     var base = kind === 'shows' ? S.shows.filter(function (s) { return F.lib < 0 || s.libId === F.lib; }).map(mShow) : filmMedia(F.lib);
     v.innerHTML = ''; var hd = el('div', 'pad', '<h2 class="pt" style="padding:0 0 14px">' + title + '</h2>'); v.append(hd);
     var bar = el('div', 'bar'); bar.style.paddingBottom = '10px';
-    if (libs.length > 1) {
-      var bubs = el('div', 'bubs'); [[-1, 'Toutes']].concat(libs.map(function (l) { return [l.id, l.name]; })).forEach(function (l) {
-        var n = kind === 'shows' ? S.shows.filter(function (x) { return l[0] < 0 || x.libId === l[0]; }).length : filmMedia(l[0]).length;
-        var c = el('button', 'bub' + (F.lib === l[0] ? ' on' : ''), '<span class="bn">' + esc(l[1]) + '</span><small>' + n + ' ' + (kind === 'shows' ? 'série' : 'film') + (n > 1 ? 's' : '') + '</small>'); c.dataset.fk = 'bub:' + l[0];
-        c.onclick = function () { F.lib = l[0]; ROUTES[kind](v); }; bubs.append(c);
-      }); v.append(bubs);
-    }
+    if (libs.length > 1) v.append(libBubbles(kind, libs, F, function () { ROUTES[kind](v); }));
     var all = el('button', 'chip', '☰ Tout parcourir (' + base.length + ')'); all.onclick = function () { go('#/' + kind + '/all'); }; bar.append(all);
     if (S.me.admin) { var sb = el('button', 'chip scanbtn', ic('refresh', 16) + ' Scanner / actualiser'); sb.onclick = scanNow; bar.append(sb); }
     bar.append(zoomBar()); v.append(bar);
@@ -769,8 +770,8 @@ function moveFocus(dx, dy, root) {
     if (n === cur) return; var q = n.getBoundingClientRect();
     var ox = Math.min(r.right, q.right) - Math.max(r.left, q.left), oy = Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top);
     var cx = (q.left + q.right) / 2 - (r.left + r.right) / 2, cy = (q.top + q.bottom) / 2 - (r.top + r.bottom) / 2, gap, side;
-    if (dx) { if (cx * dx <= 0) return; gap = dx > 0 ? q.left - r.right : r.left - q.right; side = oy > 0 ? 0 : Math.min(Math.abs(q.top - r.bottom), Math.abs(r.top - q.bottom)); }
-    else { if (cy * dy <= 0) return; gap = dy > 0 ? q.top - r.bottom : r.top - q.bottom; side = ox > 0 ? 0 : Math.min(Math.abs(q.left - r.right), Math.abs(r.left - q.right)); }
+    if (dx) { if (cx * dx <= 2) return; gap = dx > 0 ? q.left - r.right : r.left - q.right; side = oy > 0 ? 0 : Math.min(Math.abs(q.top - r.bottom), Math.abs(r.top - q.bottom)); }
+    else { if (cy * dy <= 2) return; gap = dy > 0 ? q.top - r.bottom : r.top - q.bottom; side = ox > 0 ? 0 : Math.min(Math.abs(q.left - r.right), Math.abs(r.left - q.right)); }
     var sc = Math.max(0, gap) + 2 * side + (dx ? Math.abs(cy) : Math.abs(cx)) * 0.05;
     if (sc < bs) { bs = sc; best = n; }
   });
