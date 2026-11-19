@@ -33,6 +33,7 @@ h1,h2,h3{margin:0}
 #nav a:hover{color:#fff}#nav a.on{color:#fff;font-weight:700;background:rgba(147,51,234,.28)}
 .ibtn{background:none;border:0;cursor:pointer;width:calc(42 * var(--u));height:calc(42 * var(--u));border-radius:50%;display:grid;place-items:center;color:#fff}
 .ibtn:hover{background:rgba(255,255,255,.12)}
+#bscan svg,#bs svg{position:absolute;left:50%;top:50%;margin:-12px 0 0 -12px}#bu{border-radius:calc(10 * var(--u));padding:0}#bu .avatar{position:absolute;left:50%;top:50%;margin:calc(-19 * var(--u)) 0 0 calc(-19 * var(--u))}.ibtn{position:relative}.ibtn:focus-visible,.nofv .ibtn:focus{outline:none;box-shadow:0 0 0 calc(3 * var(--u)) #fff,0 0 0 calc(7 * var(--u)) rgba(147,51,234,.6)}
 .avatar{width:calc(38 * var(--u));height:calc(38 * var(--u));border-radius:calc(8 * var(--u));display:grid;place-items:center;font-weight:800;font-size:calc(18 * var(--u));color:#fff;background:linear-gradient(135deg,var(--red),#3b0f7a)}
 #view{min-height:100vh;padding-bottom:calc(60 * var(--u))}
 .pad{padding:calc(96 * var(--u)) 4vw 0}
@@ -676,18 +677,22 @@ function browse(kind, title) {
     var genres = {}; base.forEach(function (m) { m.genres.forEach(function (g) { genres[g] = 1; }); }); genres = Object.keys(genres).sort();
     var sel = function (id, opts, val) { var s = el('select'); s.id = id; s.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join(''); s.value = val; return s; };
     if (libs.length > 1) { v.insertBefore(libBubbles(kind, libs, F, function () { F.max = (isTV() ? 72 : 240); ROUTES[kind](v, ['all']); }), fb); }
+    var sa = sel('fact', [['', 'Tous les acteurs']], F.actor || ''); S.actK = S.actK || {};
     var sg = sel('fgn', [['', 'Tous les genres']].concat(genres.map(function (g) { return [g, g]; })), F.genre), sc = sel('fcat', [['', 'Toutes les collections']].concat(S.cats.map(function (c) { return [c, c]; })), F.cat);
     var ss = sel('fso', [['added', 'Ajoutés récemment'], ['title', 'Titre A → Z'], ['year', 'Année (récent)'], ['rating', 'Note publique'], ['mine', 'Ma note'], ['played', 'Dernière lecture']], F.sort);
     var un = el('button', 'chip' + (F.unseen ? ' on' : ''), 'Non vus'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '180px';
-    fb.append(sg, sc, ss, un, qi); if (S.me.admin) { var sb = el('button', 'chip scanbtn', ic('refresh', 16) + ' Scanner / actualiser'); sb.title = 'Chercher les nouveaux fichiers et mettre à jour les fiches'; sb.onclick = scanNow; fb.append(sb); } var cnt = el('span', 'msg'); fb.append(cnt); fb.append(zoomBar());
+    fb.append(sg, sa, sc, ss, un, qi); if (S.me.admin) { var sb = el('button', 'chip scanbtn', ic('refresh', 16) + ' Scanner / actualiser'); sb.title = 'Chercher les nouveaux fichiers et mettre à jour les fiches'; sb.onclick = scanNow; fb.append(sb); } var cnt = el('span', 'msg'); fb.append(cnt); fb.append(zoomBar());
     var draw = function () {
-      var l = (kind === 'movies' ? filmMedia(F.lib) : base).filter(function (m) { return (F.lib < 0 || m.libId === F.lib) && (!F.genre || m.genres.indexOf(F.genre) >= 0) && (!F.cat || m.tags.indexOf(F.cat) >= 0) && (!F.unseen || !m.w) && (!F.q || m.t.toLowerCase().indexOf(F.q.toLowerCase()) >= 0); });
+      var l = (kind === 'movies' ? filmMedia(F.lib) : base).filter(function (m) { return (F.lib < 0 || m.libId === F.lib) && (!F.genre || m.genres.indexOf(F.genre) >= 0) && (!F.actor || inActor(m, F.actor)) && (!F.cat || m.tags.indexOf(F.cat) >= 0) && (!F.unseen || !m.w) && (!F.q || m.t.toLowerCase().indexOf(F.q.toLowerCase()) >= 0); });
       l.sort(function (a, b) { return F.sort === 'title' ? azCmp(a.t, b.t) : F.sort === 'year' ? (b.y || 0) - (a.y || 0) : F.sort === 'rating' ? b.rating - a.rating : F.sort === 'mine' ? myRate(b) - myRate(a) || b.rating - a.rating : F.sort === 'played' ? lastPlay(b) - lastPlay(a) : b.added - a.added; });
       cnt.textContent = l.length + ' titre' + (l.length > 1 ? 's' : ''); fg.innerHTML = '';
       if (!l.length) { fg.innerHTML = '<div class="emp">' + (base.length ? 'Aucun résultat avec ces filtres.' : 'Aucun contenu. Ajoutez une bibliothèque de ce type dans Réglages.') + '</div>'; return; }
       var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (m) { g.append(mCard(m)); }); fg.append(g);
       if (l.length > F.max) { var more = el('div', 'bar', ''); var b = el('button', 'btn', 'Afficher plus (' + (l.length - F.max) + ')'); b.onclick = function () { F.max += (isTV() ? 72 : 240); draw(); }; more.append(b); fg.append(more); }
     };
+    var inActor = function (m, n) { var d = S.actK[kind + '|' + n]; if (!d) return true; return m.kind === 'saga' ? m.items.some(function (x) { return d[x.id]; }) : m.kind === 'show' ? !!d[m.ref.key] : !!d[m.id]; };
+    sa.onchange = function () { F.actor = sa.value; F.max = (isTV() ? 72 : 240); draw(); };
+    (async function () { try { var r = await api('/api/actors?type=' + kind); r.actors.forEach(function (a) { var d = {}; a.k.forEach(function (k) { d[k] = 1; }); S.actK[kind + '|' + a.n] = d; sa.append(new Option(a.n + ' (' + a.k.length + ')', a.n)); }); sa.value = F.actor || ''; if (F.actor) draw(); } catch (e) {} })();
     sg.onchange = function () { F.genre = sg.value; F.max = (isTV() ? 72 : 240); draw(); }; sc.onchange = function () { F.cat = sc.value; F.max = (isTV() ? 72 : 240); draw(); }; ss.onchange = function () { F.sort = ss.value; draw(); };
     un.onclick = function () { F.unseen = !F.unseen; un.classList.toggle('on', F.unseen); draw(); }; var qt; qi.oninput = function () { clearTimeout(qt); qt = setTimeout(function () { F.q = qi.value; F.max = (isTV() ? 72 : 240); draw(); }, 200); };
     draw();
@@ -797,7 +802,7 @@ function moveFocus(dx, dy, root) {
     if (n === cur) return; var q = n.getBoundingClientRect();
     var ox = Math.min(r.right, q.right) - Math.max(r.left, q.left), oy = Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top);
     var cx = (q.left + q.right) / 2 - (r.left + r.right) / 2, cy = (q.top + q.bottom) / 2 - (r.top + r.bottom) / 2, gap, side;
-    if (dx) { if (cx * dx <= 2) return; gap = dx > 0 ? q.left - r.right : r.left - q.right; side = oy > 0 ? 0 : Math.min(Math.abs(q.top - r.bottom), Math.abs(r.top - q.bottom)); }
+    if (dx) { if (cx * dx <= 2) return; gap = dx > 0 ? q.left - r.right : r.left - q.right; side = oy > 0 ? 0 : 3 * Math.min(Math.abs(q.top - r.bottom), Math.abs(r.top - q.bottom)); }   // même ligne d'abord : la barre du haut ne saute plus sur les bulles du dessous
     else { if (cy * dy <= 2) return; gap = dy > 0 ? q.top - r.bottom : r.top - q.bottom; side = ox > 0 ? 0 : Math.min(Math.abs(q.left - r.right), Math.abs(r.left - q.right)); }
     var sc = Math.max(0, gap) + 2 * side + (dx ? Math.abs(cy) : Math.abs(cx)) * 0.05;
     if (sc < bs) { bs = sc; best = n; }
@@ -890,7 +895,7 @@ function infoGrid(d, f) {
   return g.map(function (x) { return '<div><b>' + x[0] + '</b>' + esc(x[1]) + '</div>'; }).join('');
 }
 function castRow(cast) {
-  var r = el('div', 'cast'); cast.forEach(function (c) { var p = el('div', 'person', '<div class="ph" style="' + (c.p ? 'background-image:url(\'' + esc(c.p) + '\')' : '') + '">' + (c.p ? '' : esc(c.n.charAt(0))) + '</div>' + esc(c.n) + '<small>' + esc(c.c) + '</small>'); p.tabIndex = 0; p.onclick = function () { go('#/search/' + encodeURIComponent(c.n)); }; p.onkeydown = function (e) { if (e.key === 'Enter') p.click(); }; r.append(p); }); return r;
+  var r = el('div', 'cast'); cast.forEach(function (c) { var p = el('div', 'person', '<div class="ph" style="' + (c.p ? 'background-image:url(\'' + esc(c.p) + '\')' : '') + '">' + (c.p ? '' : esc(c.n.charAt(0))) + '</div>' + esc(c.n) + '<small>' + esc(c.c) + '</small>'); p.tabIndex = 0; p.onclick = function () { go('#/person/' + encodeURIComponent(c.n) + (c.id ? '/' + c.id : '')); }; p.onkeydown = function (e) { if (e.key === 'Enter') p.click(); }; r.append(p); }); return r;
 }
 function discoverDlg(x) {
   var o = openOv('<div class="dh2">' + esc(x.title) + (x.year ? ' (' + x.year + ')' : '') + '</div><div style="padding:18px 22px;display:flex;gap:18px"><img src="' + esc(x.poster) + '" style="width:130px;border-radius:6px;align-self:flex-start"><div><p class="msg">' + (x.rating ? '★ ' + x.rating + ' · ' : '') + 'Ce titre n’est pas encore dans votre bibliothèque.</p><p>' + esc(x.overview || 'Pas de résumé.') + '</p></div></div><div class="df"><span></span><button class="btn" id="dc">Fermer</button></div>', 'sm'); $('#dc', o.dlg).onclick = o.close;
@@ -1002,7 +1007,7 @@ async function dlStart(body) { try { var r = await post('/api/dl-start', body); 
 async function destRow(key, host) {
   var cfgd = {}; try { cfgd = await api('/api/dl-list'); } catch (e) {}
   var d = el('div', 'epr'); d.tabIndex = 0; d.style.cssText = 'padding:10px 14px;margin:10px 0;border-left:4px solid #9333ea';
-  var show = function (v) { d.innerHTML = '<div class="tx" style="width:100%"><h3>Dossier d’enregistrement sur le PC</h3><div class="msg" style="word-break:break-all">' + esc(v || 'Dans le dossier du film (automatique)') + '</div><div class="msg" style="font-size:12px">Appuyer sur OK pour choisir un autre dossier (tous les disques)</div></div>'; };
+  var show = function (v) { d.innerHTML = '<div class="tx" style="width:100%"><h3>Dossier d’enregistrement sur le PC</h3><div class="msg" style="word-break:break-all">' + esc(v || 'Dans le dossier du film (automatique)') + '</div><div class="msg" style="font-size:12px">Appuyer sur OK pour choisir un autre dossier (tous les disques).</div></div>'; };
   show(cfgd[key]);
   d.onclick = async function () { var f = await pickFolder(cfgd[key] || ''); if (f === null) return; var b = {}; b[key] = f; try { await post('/api/dl-config', b); cfgd[key] = f; show(f); } catch (e) { toast(e.message); } };
   d.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } };
@@ -1383,6 +1388,28 @@ function matchDlg(f, m, done) {
   };
   $('#mg', o.dlg).onclick = run; $('#mq', o.dlg).onkeydown = function (e) { if (e.key === 'Enter') run(); }; run();
 }
+
+/* ===== Fiche acteur ===== */
+ROUTES.person = async function (v, p) {
+  var name = decodeURIComponent(p[0] || ''); v.innerHTML = '<div class="spin"></div>';
+  var d; try { d = await api('/api/person?n=' + encodeURIComponent(name) + (p[1] ? '&id=' + encodeURIComponent(p[1]) : '')); } catch (e) { v.innerHTML = '<div class="emp">' + esc(e.message) + '</div>'; return; }
+  v.innerHTML = '';
+  var fr = function (s) { if (!s) return ''; var a = s.split('-'); return a.length === 3 ? a[2] + '/' + a[1] + '/' + a[0] : s; };
+  var age = ''; if (d.birth) { var b = new Date(d.birth), e = d.death ? new Date(d.death) : new Date(); var y = e.getFullYear() - b.getFullYear(); if (e < new Date(e.getFullYear(), b.getMonth(), b.getDate())) y--; age = y + ' ans'; }
+  var head = el('div', 'pad'); head.innerHTML = '<div style="display:flex;gap:calc(26 * var(--u));align-items:flex-start;flex-wrap:wrap"><div style="width:calc(170 * var(--u));height:calc(170 * var(--u));border-radius:50%;flex:none;background:#25252b center/cover' + (d.photo ? ';background-image:url(\'' + esc(d.photo) + '\')' : '') + ';display:grid;place-items:center;font-size:calc(54 * var(--u));font-weight:800">' + (d.photo ? '' : esc(name.charAt(0))) + '</div><div style="flex:1;min-width:240px"><h1 style="margin:0 0 6px">' + esc(d.name) + '</h1><div class="meta">' + (d.known ? '<span>' + esc(d.known) + '</span>' : '') + (d.birth ? '<span>Né(e) le ' + esc(fr(d.birth)) + (d.death ? ' · mort(e) le ' + esc(fr(d.death)) : (age ? ' · ' + age : '')) + '</span>' : '') + (d.place ? '<span>' + esc(d.place) + '</span>' : '') + '</div><div class="pbio"></div></div></div>';
+  v.append(head);
+  var bio = $('.pbio', head);
+  if (d.bio) {
+    var t = el('p', 'ov-text', esc(d.bio)); t.style.cssText = 'max-height:calc(150 * var(--u));overflow:hidden;white-space:pre-line'; bio.append(t);
+    if (d.bio.length > 420) { var tg = el('button', 'btn sm ghost', 'Lire toute la biographie'), open = false; tg.onclick = function () { open = !open; t.style.maxHeight = open ? 'none' : 'calc(150 * var(--u))'; tg.textContent = open ? 'Réduire' : 'Lire toute la biographie'; }; bio.append(tg); }
+  } else bio.append(el('p', 'msg', S.cfg && S.cfg.tmdbSet === false ? 'Biographie indisponible : ajoutez une clé TMDB dans Réglages.' : 'Pas de biographie disponible.'));
+  var mapM = function (x) { return x.type === 'shows' ? (S.showBy[x.libId + '|' + x.show] ? mShow(S.showBy[x.libId + '|' + x.show]) : null) : (S.byId[x.id] ? mMovie(S.byId[x.id]) : null); };
+  var loc = d.local.map(mapM).filter(Boolean);
+  if (loc.length) v.append(rowx('Dans ma bibliothèque (' + loc.length + ')', loc.map(function (m) { return mCard(m); })));
+  if (d.iptv.length) v.append(rowx('Sur IPTV (' + d.iptv.length + ')', d.iptv.map(function (c) { return card({ t: c.name, sub: c.year || '', poster: c.icon, href: '#/' + (c.kind === 'vod' ? 'xvod' : 'xser') + '/' + c.id }); })));
+  if (d.credits.length) v.append(rowx('Autres films et séries', d.credits.map(function (x) { return card({ t: x.title, sub: (x.year || '') + (x.char ? ' · ' + x.char : '') + (x.rating ? ' · ★ ' + x.rating : ''), poster: x.poster, fn: function () { discoverDlg(x); } }); })));
+  if (!loc.length && !d.iptv.length && !d.credits.length) v.append(el('div', 'emp', 'Aucun titre trouvé pour cet acteur.' + (d.err ? ' (' + esc(d.err) + ')' : '')));
+};
 
 /* ===== Recherche ===== */
 ROUTES.search = async function (v, p) {
@@ -1923,12 +1950,13 @@ ROUTES.m3u = function (v) {
 function XTMAX() { return document.documentElement.classList.contains('tv') ? 120 : 240; }
 function xtPosters(key, title, catAct, listAct, mk) {
   return async function (v) {
-    var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: XTMAX() }); v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
+    var F = S.f[key] || (S.f[key] = { cat: '', q: '', max: XTMAX() }); if (!F.sort) F.sort = 'az'; v.innerHTML = '<div class="pad"><h2 class="pt" style="padding:0 0 12px">' + title + '</h2></div>'; var cats, list;
     try { var r = await Promise.all([xt(catAct), xt(listAct)]); cats = r[0]; list = r[1]; if (!Array.isArray(cats) || !Array.isArray(list)) throw 0; cats = azSort(cats, function (x) { return x.category_name; }); list = azSort(list, function (x) { return x.name; }); } catch (e) { v.append(el('div', 'emp', 'Impossible de charger le catalogue IPTV. Vérifiez les Réglages.')); return; }
     v.append(catPills(key, cats.map(function (c) { return [c.category_id, c.category_name]; }), F, XTMAX(), function () { ROUTES[key](v); }, false));
-    var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '240px'; var cnt = el('span', 'msg'); bar.append(qi, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
-    var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += XTMAX(); draw(); }; m.append(b); box.append(m); } };
-    var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = XTMAX(); draw(); }, 200); }; draw();
+    var bar = el('div', 'bar'), qi = el('input'); qi.type = 'search'; qi.placeholder = 'Filtrer…'; qi.value = F.q; qi.style.width = '240px'; var cnt = el('span', 'msg'), so = el('select'); so.innerHTML = [['az', 'Titre A → Z'], ['added', 'Ajoutés récemment'], ['rating', 'Note'], ['year', 'Année (récent)']].map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join(''); so.value = F.sort; bar.append(qi, so, cnt, zoomBar()); v.append(bar); var box = el('div'); v.append(box);
+    var draw = function () { var l = list.filter(function (x) { return (!F.cat || String(x.category_id) === String(F.cat)) && (!F.q || String(x.name).toLowerCase().indexOf(F.q.toLowerCase()) >= 0); }); if (F.sort !== 'az') { var yr = function (x) { return +String(x.year || x.releaseDate || x.release_date || '').slice(0, 4) || 0; }, ad = function (x) { return +x.added || +x.last_modified || 0; }, rt = function (x) { return +x.rating || +x.rating_5based * 2 || 0; }; l = l.slice().sort(function (a, b) { return F.sort === 'added' ? ad(b) - ad(a) : F.sort === 'rating' ? rt(b) - rt(a) : yr(b) - yr(a) || ad(b) - ad(a); }); }
+    cnt.textContent = l.length + ' titres'; box.innerHTML = ''; var g = el('div', 'grid'); l.slice(0, F.max).forEach(function (x) { g.append(mk(x)); }); box.append(g); if (!l.length) box.innerHTML = '<div class="emp">Aucun résultat.</div>'; if (l.length > F.max) { var m = el('div', 'bar'), b = el('button', 'btn', 'Afficher plus'); b.onclick = function () { F.max += XTMAX(); draw(); }; m.append(b); box.append(m); } };
+    so.onchange = function () { F.sort = so.value; F.max = XTMAX(); draw(); }; var t; qi.oninput = function () { clearTimeout(t); t = setTimeout(function () { F.q = qi.value; F.max = XTMAX(); draw(); }, 200); }; draw();
   };
 }
 ROUTES.vod = xtPosters('vod', 'Films IPTV', 'get_vod_categories', 'get_vod_streams', function (x) { return card({ t: x.name, sub: x.rating && +x.rating ? '★ ' + (+x.rating).toFixed(1) : '', poster: x.stream_icon, w: isW('xv|' + x.stream_id), pct: pctOf('xv|' + x.stream_id), href: '#/xvod/' + x.stream_id }); });

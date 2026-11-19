@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.21.9', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.23.3', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -337,7 +337,7 @@ function shape(j, tv, lang) {
     directors: tv ? (j.created_by || []).map(c => c.name).slice(0, 4) : ((j.credits || {}).crew || []).filter(c => c.job === 'Director').map(c => c.name).slice(0, 4),
     writers: ((j.credits || {}).crew || []).filter(c => ['Writer', 'Screenplay', 'Story', 'Novel'].includes(c.job)).map(c => c.name).filter((n, k, a) => a.indexOf(n) === k).slice(0, 5),
     countries: (j.production_countries || []).map(c => c.iso_3166_1).concat(j.origin_country || []).filter((n, k, a) => a.indexOf(n) === k).slice(0, 4),
-    cast: ((j.credits || {}).cast || []).slice(0, 14).map(c => ({ n: c.name, c: c.character || '', p: c.profile_path ? IMG + 'w185' + c.profile_path : '' })),
+    cast: ((j.credits || {}).cast || []).slice(0, 14).map(c => ({ n: c.name, id: c.id, c: c.character || '', p: c.profile_path ? IMG + 'w185' + c.profile_path : '' })),
     seasons: tv ? (j.seasons || []).filter(s => s.season_number > 0).map(s => ({ n: s.season_number, name: s.name, count: s.episode_count })) : undefined
   };
 }
@@ -1094,6 +1094,47 @@ SRV = http.createServer(async (req, res) => {
       return J(req, res, { url: THEMES[key] || '', src: 'itunes' });
     }
     if (p.startsWith('/theme/')) { const i = itemFor(me, +p.slice(7)), f = i && localTheme(i); if (!f) { res.writeHead(404); return res.end(); } return serveFile(req, res, f); }
+    if (p === '/api/actors') {   // acteurs de la bibliothèque (au moins 2 titres) pour le filtre « Tous les acteurs »
+      const tp = q.get('type') === 'shows' ? 'shows' : 'movies', mp = new Map();
+      for (const i of index) { if (i.type !== tp || !allowedLib(me, cfg.libraries[i.libId])) continue; const key = tp === 'shows' ? i.libId + '|' + i.show : i.id; for (const c of (M(i).cast || []).slice(0, 8)) { let e = mp.get(c.n); if (!e) mp.set(c.n, e = { n: c.n, k: new Set() }); e.k.add(key); } }
+      const l = [...mp.values()].filter(e => e.k.size >= 2).sort((a, b) => b.k.size - a.k.size).slice(0, 300).map(e => ({ n: e.n, k: [...e.k] }));
+      return J(req, res, { actors: l });
+    }
+    if (p === '/api/person') {   // fiche acteur : biographie, films de ma bibliothèque, films IPTV, filmographie complète
+      const nm = String(q.get('n') || '').trim(); if (!nm) return J(req, res, { error: 'Nom manquant' }, 400);
+      const mine = index.filter(i => allowedLib(me, cfg.libraries[i.libId])), lc = nm.toLowerCase(), out = { name: nm, photo: '', bio: '', birth: '', death: '', place: '', known: '', local: [], iptv: [], credits: [] };
+      const seenL = new Set(), ownIds = new Set();
+      for (const i of mine) { const mm = M(i), c = (mm.cast || []).find(c => String(c.n).toLowerCase() === lc); if (!c) continue; if (!out.photo && c.p) out.photo = px(c.p); if (mm.id) ownIds.add(i.type + '|' + mm.id); const key = i.type === 'shows' ? 's' + i.libId + i.show : i.id; if (!seenL.has(key) && out.local.length < 80) { seenL.add(key); out.local.push(itemOut(i, S)); } }
+      let cr = [];
+      if (cfg.tmdb) {
+        try {
+          let pid = +q.get('id') || 0;
+          if (!pid) { const r = await tmdb('/search/person', { query: nm }); pid = ((r.results || [])[0] || {}).id || 0; }
+          if (pid) {
+            const d = await tmdb('/person/' + pid, { append_to_response: 'combined_credits' });
+            let bio = d.biography || ''; if (!bio) { try { bio = (await tmdb('/person/' + pid, {}, 'en-US')).biography || ''; } catch {} }
+            out.bio = bio; out.birth = d.birthday || ''; out.death = d.deathday || ''; out.place = d.place_of_birth || ''; out.known = d.known_for_department || ''; if (d.profile_path) out.photo = IMG + 'w342' + d.profile_path;
+            cr = ((d.combined_credits || {}).cast || []).filter(c => (c.media_type === 'movie' || c.media_type === 'tv') && c.poster_path && !(c.genre_ids || []).some(g => g === 10767 || g === 10763 || g === 10764)).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+            const uq = new Set(); cr = cr.filter(c => { const k = c.media_type + c.id; if (uq.has(k)) return false; uq.add(k); return true; }).slice(0, 100);
+          }
+        } catch (e) { out.err = e.message; }
+      }
+      const idx = new Map();
+      if (me.iptv !== false && cfg.xtream && cr.length) {
+        for (const [kind, a] of [['vod', 'get_vod_streams'], ['series', 'get_series']]) {
+          try { const l = JSON.parse(await xtGet({ action: a })); if (Array.isArray(l)) for (const x of l) { const nk = normName(String(x.name || '').replace(/^[A-Za-z]{2,3}\s*[-|:]\s*/, '')); if (nk && !idx.has(kind + nk)) idx.set(kind + nk, { kind, id: x.stream_id || x.series_id, name: x.name, icon: x.stream_icon || x.cover || '' }); } } catch {}
+        }
+      }
+      const ip = new Set();
+      for (const c of cr) {
+        const tv = c.media_type === 'tv', title = c.title || c.name || '', year = (c.release_date || c.first_air_date || '').slice(0, 4);
+        if (ownIds.has((tv ? 'shows' : 'movies') + '|' + c.id)) continue;
+        const hit = idx.get((tv ? 'series' : 'vod') + normName(title)) || idx.get((tv ? 'series' : 'vod') + normName(c.original_title || c.original_name || ''));
+        if (hit && !ip.has(hit.kind + hit.id)) { ip.add(hit.kind + hit.id); out.iptv.push(Object.assign({ year }, hit)); continue; }
+        out.credits.push({ id: c.id, tv, title, year, char: c.character || '', poster: IMG + 'w342' + c.poster_path, rating: c.vote_average ? +c.vote_average.toFixed(1) : 0, overview: c.overview || '' });
+      }
+      return J(req, res, out);
+    }
     if (p === '/api/search') return J(req, res, await search(String(q.get('q') || '').trim(), me, S));
 
     /* --- état de l'utilisateur --- */
