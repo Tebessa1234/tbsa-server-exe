@@ -909,7 +909,15 @@ function castRow(cast) {
   var r = el('div', 'cast'); cast.forEach(function (c) { var p = el('div', 'person', '<div class="ph" style="' + (c.p ? 'background-image:url(\'' + esc(c.p) + '\')' : '') + '">' + (c.p ? '' : esc(c.n.charAt(0))) + '</div>' + esc(c.n) + '<small>' + esc(c.c) + '</small>'); p.tabIndex = 0; p.onclick = function () { go('#/person/' + encodeURIComponent(c.n) + (c.id ? '/' + c.id : '')); }; p.onkeydown = function (e) { if (e.key === 'Enter') p.click(); }; r.append(p); }); return r;
 }
 function discoverDlg(x) {
-  var o = openOv('<div class="dh2">' + esc(x.title) + (x.year ? ' (' + x.year + ')' : '') + '</div><div style="padding:18px 22px;display:flex;gap:18px"><img src="' + esc(x.poster) + '" style="width:130px;border-radius:6px;align-self:flex-start"><div><p class="msg">' + (x.rating ? '★ ' + x.rating + ' · ' : '') + 'Ce titre n’est pas encore dans votre bibliothèque.</p><p>' + esc(x.overview || 'Pas de résumé.') + '</p></div></div><div class="df"><span></span><button class="btn" id="dc">Fermer</button></div>', 'sm'); $('#dc', o.dlg).onclick = o.close;
+  var o = openOv('<div class="dh2">' + esc(x.title) + (x.year ? ' (' + x.year + ')' : '') + '</div><div style="padding:18px 22px;display:flex;gap:18px"><img src="' + esc(x.poster) + '" style="width:130px;border-radius:6px;align-self:flex-start"><div><p class="msg">' + (x.rating ? '★ ' + x.rating + ' · ' : '') + 'Ce titre n’est pas encore dans votre bibliothèque.</p><p>' + esc(x.overview || 'Pas de résumé.') + '</p></div></div><div id="ir" style="padding:0 22px"></div><div class="df"><span></span>' + (S.cfg.iptv.xtream ? '<button class="btn red" id="di">Rechercher sur IPTV</button>' : '') + '<button class="btn" id="dc">Fermer</button></div>', 'sm'); $('#dc', o.dlg).onclick = o.close;
+  var di = $('#di', o.dlg); if (di) di.onclick = async function () {
+    var ir = $('#ir', o.dlg); di.disabled = true; ir.innerHTML = '<p class="msg">Recherche sur l’IPTV…</p>';
+    try {
+      var r = await api('/api/search?q=' + encodeURIComponent(x.title)), l = (r.vod || []).map(function (c) { return { n: c.name, t: 'Film', h: '#/xvod/' + c.id }; }).concat((r.series || []).map(function (c) { return { n: c.name, t: 'Série', h: '#/xser/' + c.id }; })).slice(0, 8);
+      ir.innerHTML = ''; if (!l.length) { ir.innerHTML = '<p class="msg">Introuvable sur votre IPTV.</p>'; di.disabled = false; return; }
+      ir.append(el('p', 'msg', 'Trouvé sur votre IPTV :')); l.forEach(function (c) { var b = el('button', 'btn', esc(c.t) + ' · ' + esc(c.n)); b.style.cssText = 'display:block;width:100%;text-align:left;margin:4px 0'; b.onclick = function () { o.close(); go(c.h); }; ir.append(b); });
+    } catch (e) { ir.innerHTML = '<p class="msg">Recherche impossible : ' + esc(e.message) + '</p>'; di.disabled = false; }
+  };
 }
 async function recsRows(v, id, m) {
   try {

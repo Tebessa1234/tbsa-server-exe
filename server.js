@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.24.0', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.24.1', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -1107,17 +1107,20 @@ SRV = http.createServer(async (req, res) => {
       const cnt = new Map(); let tot = 0; const seen = new Set();
       for (const i of its) { const key = tv ? i.libId + '|' + i.show : i.id; if (seen.has(key)) continue; seen.add(key); tot++; for (const g of (M(i).genres || [])) cnt.set(g, (cnt.get(g) || 0) + 1); }
       let top = null; for (const [g, n] of cnt) if (!top || n > top[1]) top = [g, n];
-      let gid = 0, gname = '';
+      let gid = 0, gname = '', kw = 0;
       const nz = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      const ALIAS = { horreur: 'horror', epouvante: 'horror', thriller: 'thriller', zombie: 'zombie', zombies: 'zombie', slasher: 'slasher', policier: 'police', romance: 'romance', romantique: 'romance', anime: 'anime', manga: 'anime', superheros: 'superhero', apocalypse: 'post apocalyptic', vampire: 'vampire', sorcellerie: 'witch', paranormal: 'supernatural', espionnage: 'spy', catastrophe: 'disaster', cyberpunk: 'cyberpunk', adolescent: 'teenager', sport: 'sports', musical: 'musical', histoire: 'history', biographie: 'biography' };
       try {
         const gl = (await tmdb('/genre/' + (tv ? 'tv' : 'movie') + '/list', {})).genres || [], ln = lib >= 0 && cfg.libraries[lib] ? ' ' + nz(cfg.libraries[lib].name) + ' ' : '';
-        let f = ln ? gl.find(x => ln.includes(' ' + nz(x.name) + ' ')) : null;   // le nom de la bibliothèque contient un genre (« Séries crime », « Films horreur »…)
-        if (!f && top && tot >= 3 && top[1] / tot >= 0.6) f = gl.find(x => nz(x.name) === nz(top[0]));   // sinon : genre dominant de ses titres
+        // 1) le nom de la bibliothèque contient un genre (« Séries crime », « Films horreur »…) ; 2) un mot-clé (horreur n'est pas un genre TMDB pour les séries) ; 3) le genre dominant de ses titres
+        let f = ln ? gl.find(x => String(x.name).split(/\s*&\s*/).some(pt => nz(pt).length >= 4 && ln.includes(' ' + nz(pt) + ' '))) : null;
+        if (!f && ln) { const w = Object.keys(ALIAS).find(a => ln.includes(' ' + a + ' ')); if (w) { try { const kr = await tmdb('/search/keyword', { query: ALIAS[w], page: '1' }); const k0 = (kr.results || []).find(x => nz(x.name) === nz(ALIAS[w])) || (kr.results || [])[0]; if (k0) { kw = k0.id; gname = w.charAt(0).toUpperCase() + w.slice(1); } } catch {} } }
+        if (!f && !kw && top && tot >= 3 && top[1] / tot >= 0.6) f = gl.find(x => nz(x.name) === nz(top[0]) || String(x.name).split(/\s*&\s*/).some(pt => nz(pt) === nz(top[0])));
         if (f) { gid = f.id; gname = f.name; }
       } catch {}
-      const ck = 'top|' + (tv ? 'tv' : 'mv') + '|' + gid; const TOPC = global.TOPC || (global.TOPC = new Map()); let ent = TOPC.get(ck);
+      const ck = 'top|' + (tv ? 'tv' : 'mv') + '|' + gid + '|' + kw; const TOPC = global.TOPC || (global.TOPC = new Map()); let ent = TOPC.get(ck);
       if (!ent || Date.now() - ent.t > 6 * 3600e3) {
-        let r; try { r = gid ? await tmdb('/discover/' + (tv ? 'tv' : 'movie'), { with_genres: String(gid), sort_by: 'popularity.desc', 'vote_count.gte': '300', page: '1' }) : await tmdb('/trending/' + (tv ? 'tv' : 'movie') + '/week', {}); } catch (e) { return J(req, res, { items: [], err: e.message }); }
+        let r; try { r = (gid || kw) ? await tmdb('/discover/' + (tv ? 'tv' : 'movie'), Object.assign({ sort_by: 'popularity.desc', 'vote_count.gte': kw ? '100' : '300', page: '1' }, gid ? { with_genres: String(gid) } : { with_keywords: String(kw) })) : await tmdb('/trending/' + (tv ? 'tv' : 'movie') + '/week', {}); } catch (e) { return J(req, res, { items: [], err: e.message }); }
         ent = { t: Date.now(), list: (r.results || []).filter(x => x.poster_path).slice(0, 10) }; TOPC.set(ck, ent);
       }
       const own = new Map(); for (const i of index) { if (i.type !== (tv ? 'shows' : 'movies') || !allowedLib(me, cfg.libraries[i.libId])) continue; const id = M(i).id; if (id && !own.has(id)) own.set(id, tv ? { type: 'shows', libId: i.libId, show: i.show } : { type: 'movies', id: i.id }); }
