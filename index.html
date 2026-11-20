@@ -527,7 +527,7 @@ function rowx(title, nodes) {
 function top10(list) {
   return list.map(function (m, n) {
     var c = el('div', 't10', '<b>' + (n + 1) + '</b><div class="pc">' + (m.poster ? '<img loading="lazy" src="' + esc(m.poster) + '" alt="" onerror="this.remove()">' : '<span style="padding:6px;display:block">' + esc(m.t) + '</span>') + '</div>');
-    c.tabIndex = 0; c.dataset.fk = m.href; c.onclick = function () { go(m.href); }; c.onkeydown = function (e) { if (e.key === 'Enter') c.click(); }; return c;
+    c.tabIndex = 0; c.dataset.fk = m.href; c.onclick = function () { if (m.fn) m.fn(); else go(m.href); }; c.onkeydown = function (e) { if (e.key === 'Enter') c.click(); }; return c;
   });
 }
 
@@ -735,6 +735,17 @@ function libHome(kind, title) {
         clearTimeout(hT); hT = setTimeout(function () { api('/api/item/' + m.id).then(function (f) { if (tk !== hTok || !f) return; if (f.backdrop) $('.hb', hero).style.backgroundImage = 'url("' + f.backdrop + '")'; $('.ov-text', hero).textContent = f.overview || ''; if (f.rating) $('.meta', hero).insertAdjacentHTML('afterbegin', '<span class="rate">★ ' + (+f.rating).toFixed(1) + '</span>'); }).catch(function () {}); }, 280);
       };
     }
+    // Top 10 du moment (TMDB), pas limité à mes fichiers ; les titres que je n'ai pas ouvrent leur fiche avec « pas dans la bibliothèque »
+    try {
+      var tp = await api('/api/top?type=' + kind + '&lib=' + F.lib);
+      if (tp.items && tp.items.length) {
+        var tl = tp.items.map(function (x) {
+          var m = x.own ? (x.own.type === 'shows' ? (S.showBy[x.own.libId + '|' + x.own.show] ? mShow(S.showBy[x.own.libId + '|' + x.own.show]) : null) : (S.byId[x.own.id] ? mMovie(S.byId[x.own.id]) : null)) : null;
+          return m || { t: x.title, poster: x.poster, href: '#top' + x.id, fn: function () { discoverDlg({ title: x.title, year: x.year, poster: x.poster, rating: x.rating, overview: x.overview }); } };
+        });
+        v.append(rowx('Top 10 ' + (kind === 'shows' ? 'séries' : 'films') + (tp.genre ? ' ' + tp.genre.toLowerCase() : '') + ' du moment', top10(tl)));
+      }
+    } catch (e) {}
     // Reprendre
     var cl = continueList().filter(function (e) { var i = S.byK[e.k]; return i && i.type === kind && (F.lib < 0 || i.libId === F.lib); }), sd = {}, rc = [];
     cl.forEach(function (e) { var i = S.byK[e.k], key = kind === 'shows' ? i.libId + '|' + i.show : e.k; if (!sd[key]) { sd[key] = 1; var rcd = resumeCard(e), sh = kind === 'shows' ? S.showBy[i.libId + '|' + i.show] : null, mm = kind === 'shows' ? (sh ? mShow(sh) : null) : mMovie(i); if (mm) rcd.addEventListener('focusin', function () { if (heroSet) heroSet(mm, true, function () { playLocal(i); }); }); rc.push(rcd); } });

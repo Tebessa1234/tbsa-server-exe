@@ -3,7 +3,7 @@
 'use strict';
 const os = require('os'), crypto = require('crypto'), http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { spawn, spawnSync, execFile } = require('child_process');
-const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.23.3', STARTED = Date.now();
+const FORCED_PORT = !!process.env.PORT; let PORT = +process.env.PORT || 8585; const VERSION = '3.24.0', STARTED = Date.now();
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 function writable(d) { try { fs.mkdirSync(d, { recursive: true }); const t = path.join(d, '.w' + process.pid); fs.writeFileSync(t, '1'); fs.unlinkSync(t); return true; } catch { return false; } }
 function copyDir(a, b) { fs.mkdirSync(b, { recursive: true }); for (const e of fs.readdirSync(a, { withFileTypes: true })) { const x = path.join(a, e.name), y = path.join(b, e.name); if (e.isDirectory()) copyDir(x, y); else fs.copyFileSync(x, y); } }
@@ -1099,6 +1099,29 @@ SRV = http.createServer(async (req, res) => {
       for (const i of index) { if (i.type !== tp || !allowedLib(me, cfg.libraries[i.libId])) continue; const key = tp === 'shows' ? i.libId + '|' + i.show : i.id; for (const c of (M(i).cast || []).slice(0, 8)) { let e = mp.get(c.n); if (!e) mp.set(c.n, e = { n: c.n, k: new Set() }); e.k.add(key); } }
       const l = [...mp.values()].filter(e => e.k.size >= 2).sort((a, b) => b.k.size - a.k.size).slice(0, 300).map(e => ({ n: e.n, k: [...e.k] }));
       return J(req, res, { actors: l });
+    }
+    if (p === '/api/top') {   // Top 10 « du moment » (TMDB) pour une bibliothèque : par genre dominant de la bibliothèque, sinon tendances de la semaine
+      if (!cfg.tmdb) return J(req, res, { items: [], err: 'Clé TMDB manquante' });
+      const tv = q.get('type') === 'shows', lib = +q.get('lib');
+      const its = index.filter(i => i.type === (tv ? 'shows' : 'movies') && (lib >= 0 ? i.libId === lib : true) && allowedLib(me, cfg.libraries[i.libId]));
+      const cnt = new Map(); let tot = 0; const seen = new Set();
+      for (const i of its) { const key = tv ? i.libId + '|' + i.show : i.id; if (seen.has(key)) continue; seen.add(key); tot++; for (const g of (M(i).genres || [])) cnt.set(g, (cnt.get(g) || 0) + 1); }
+      let top = null; for (const [g, n] of cnt) if (!top || n > top[1]) top = [g, n];
+      let gid = 0, gname = '';
+      const nz = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      try {
+        const gl = (await tmdb('/genre/' + (tv ? 'tv' : 'movie') + '/list', {})).genres || [], ln = lib >= 0 && cfg.libraries[lib] ? ' ' + nz(cfg.libraries[lib].name) + ' ' : '';
+        let f = ln ? gl.find(x => ln.includes(' ' + nz(x.name) + ' ')) : null;   // le nom de la bibliothèque contient un genre (« Séries crime », « Films horreur »…)
+        if (!f && top && tot >= 3 && top[1] / tot >= 0.6) f = gl.find(x => nz(x.name) === nz(top[0]));   // sinon : genre dominant de ses titres
+        if (f) { gid = f.id; gname = f.name; }
+      } catch {}
+      const ck = 'top|' + (tv ? 'tv' : 'mv') + '|' + gid; const TOPC = global.TOPC || (global.TOPC = new Map()); let ent = TOPC.get(ck);
+      if (!ent || Date.now() - ent.t > 6 * 3600e3) {
+        let r; try { r = gid ? await tmdb('/discover/' + (tv ? 'tv' : 'movie'), { with_genres: String(gid), sort_by: 'popularity.desc', 'vote_count.gte': '300', page: '1' }) : await tmdb('/trending/' + (tv ? 'tv' : 'movie') + '/week', {}); } catch (e) { return J(req, res, { items: [], err: e.message }); }
+        ent = { t: Date.now(), list: (r.results || []).filter(x => x.poster_path).slice(0, 10) }; TOPC.set(ck, ent);
+      }
+      const own = new Map(); for (const i of index) { if (i.type !== (tv ? 'shows' : 'movies') || !allowedLib(me, cfg.libraries[i.libId])) continue; const id = M(i).id; if (id && !own.has(id)) own.set(id, tv ? { type: 'shows', libId: i.libId, show: i.show } : { type: 'movies', id: i.id }); }
+      return J(req, res, { genre: gname, items: ent.list.map(c => ({ id: c.id, title: c.title || c.name || '', year: (c.release_date || c.first_air_date || '').slice(0, 4), poster: IMG + 'w342' + c.poster_path, rating: c.vote_average ? +c.vote_average.toFixed(1) : 0, overview: c.overview || '', own: own.get(c.id) || null })) });
     }
     if (p === '/api/person') {   // fiche acteur : biographie, films de ma bibliothèque, films IPTV, filmographie complète
       const nm = String(q.get('n') || '').trim(); if (!nm) return J(req, res, { error: 'Nom manquant' }, 400);
